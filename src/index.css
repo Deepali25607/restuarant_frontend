@@ -1,0 +1,173 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Tiro+Devanagari+Hindi&family=Hind+Siliguri:wght@400;500;600;700&family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light mode tokens */
+    --bg: #fff8ee;
+    --text: #1b1109;
+    --text-muted: #693b22;
+    --surface: rgba(255, 255, 255, 0.8);
+    --surface-solid: #ffffff;
+    --surface-elevated: rgba(255, 255, 255, 0.92);
+    --border: rgba(255, 255, 255, 1);
+    --border-soft: rgba(254, 215, 170, 0.6);
+    --chip-bg: rgba(255, 255, 255, 0.8);
+    --chip-text: #693b22;
+    --input-bg: #fff8ee;
+    --input-border: #fed7aa;
+    --backdrop: rgba(43, 24, 16, 0.4);
+
+    --bg-radial:
+      radial-gradient(circle at 0% 0%, rgba(253, 186, 116, 0.35), transparent 40%),
+      radial-gradient(circle at 100% 0%, rgba(252, 165, 165, 0.3), transparent 45%),
+      radial-gradient(circle at 50% 100%, rgba(250, 204, 21, 0.18), transparent 50%);
+  }
+
+  html.dark {
+    /* Dark mode — kept warm with a deep masala base */
+    --bg: #1a0e08;
+    --text: #fef0d9;
+    --text-muted: #d6a877;
+    --surface: rgba(74, 42, 28, 0.55);
+    --surface-solid: #2b1810;
+    --surface-elevated: rgba(74, 42, 28, 0.75);
+    --border: rgba(105, 59, 34, 0.5);
+    --border-soft: rgba(105, 59, 34, 0.5);
+    --chip-bg: rgba(43, 24, 16, 0.8);
+    --chip-text: #ecd0ad;
+    --input-bg: rgba(43, 24, 16, 0.8);
+    --input-border: rgba(105, 59, 34, 0.7);
+    --backdrop: rgba(0, 0, 0, 0.65);
+
+    --bg-radial:
+      radial-gradient(circle at 0% 0%, rgba(234, 88, 12, 0.2), transparent 40%),
+      radial-gradient(circle at 100% 0%, rgba(220, 38, 38, 0.18), transparent 45%),
+      radial-gradient(circle at 50% 100%, rgba(202, 138, 4, 0.15), transparent 55%);
+    color-scheme: dark;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply font-sans antialiased;
+    background-color: var(--bg);
+    color: var(--text);
+    background-image: var(--bg-radial);
+    background-attachment: fixed;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-display tracking-tight;
+    color: var(--text);
+  }
+  ::selection {
+    background: #fb923c;
+    color: #fff;
+  }
+
+  /* Hindi/Bengali pages get a script-tuned font stack */
+  html[lang='hi'] body {
+    font-family: 'Hind Siliguri', 'Plus Jakarta Sans', system-ui, sans-serif;
+  }
+  html[lang='bn'] body {
+    font-family: 'Noto Sans Bengali', 'Plus Jakarta Sans', system-ui, sans-serif;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-curry-gradient px-6 py-3 font-semibold text-white shadow-warm transition-all duration-200 hover:shadow-plate hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 disabled:cursor-not-allowed;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 font-semibold transition-all duration-200 hover:shadow-warm;
+    color: var(--text-muted);
+    background: var(--surface);
+    border: 1px solid var(--input-border);
+    backdrop-filter: blur(8px);
+  }
+  .btn-secondary:hover {
+    background: var(--surface-elevated);
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 font-medium transition-colors;
+    color: var(--text-muted);
+  }
+  .btn-ghost:hover {
+    background: var(--chip-bg);
+  }
+  .card {
+    @apply rounded-3xl backdrop-blur-xl shadow-warm;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold;
+    background: var(--chip-bg);
+    color: var(--chip-text);
+    border: 1px solid var(--input-border);
+  }
+  .veg-dot,
+  .nonveg-dot {
+    @apply inline-block h-3 w-3 rounded-sm border-2 relative;
+  }
+  .veg-dot {
+    @apply border-emerald-500;
+  }
+  .veg-dot::after {
+    content: '';
+    @apply absolute inset-1 rounded-full bg-emerald-500;
+  }
+  .nonveg-dot {
+    @apply border-chilli-500;
+  }
+  .nonveg-dot::after {
+    content: '';
+    @apply absolute inset-1 rounded-full bg-chilli-500;
+  }
+  .section-heading {
+    @apply font-display text-3xl md:text-4xl;
+    color: var(--text);
+  }
+  .eyebrow {
+    @apply inline-flex items-center gap-2 text-xs uppercase tracking-[0.25em] text-saffron-500 font-semibold;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    scrollbar-width: none;
+  }
+}
+
+/* Sonner doesn't ship a vertical-center position — pin the toaster container
+   to the middle of the viewport. We keep `position="top-center"` on the
+   Toaster so it handles horizontal centering, then override `top`. */
+[data-sonner-toaster][data-y-position='top'] {
+  top: 50vh !important;
+  transform: translate(-50%, -50%) !important;
+}
+
+/* Bulk QR print sheet. When the printable sheet is mounted, the rest of the
+   app is muted; in print preview, only the .print-sheet block survives. */
+.print-sheet {
+  background: white;
+  color: black;
+}
+.print-sheet [data-print-hide] { /* nothing when on-screen */ }
+@media print {
+  body * { visibility: hidden !important; }
+  .print-sheet, .print-sheet * { visibility: visible !important; }
+  .print-sheet [data-print-hide] { display: none !important; }
+  .print-sheet { position: absolute; inset: 0; padding: 0; box-shadow: none; }
+  @page { margin: 12mm; }
+}
