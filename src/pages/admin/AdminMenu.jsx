@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Pencil, Trash2, X, Save, Image as ImageIcon, AlertTriangle, UtensilsCrossed, Upload, Loader2, Package, PackagePlus, Timer } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Save, Image as ImageIcon, AlertTriangle, UtensilsCrossed, Upload, Loader2, Package, PackagePlus, Timer, Tags } from 'lucide-react'
 import clsx from 'clsx'
 import { toast } from 'sonner'
-import { fetchMenu, fetchCategories, createDish, updateDish, deleteDish, uploadImage, restockDish } from '../../lib/api'
+import { fetchMenu, fetchAdminCategories, createDish, updateDish, deleteDish, uploadImage, restockDish, createCategory, updateCategory, deleteCategory } from '../../lib/api'
 import SpiceMeter from '../../components/SpiceMeter'
 import DishImage from '../../components/DishImage'
 import UsageGauge, { refreshUsage } from '../../components/admin/UsageGauge'
@@ -30,10 +30,11 @@ export default function AdminMenu() {
   const [filter, setFilter] = useState('all')
   const [editing, setEditing] = useState(null)
   const [restocking, setRestocking] = useState(null)
+  const [managingCats, setManagingCats] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    Promise.all([fetchMenu(), fetchCategories()])
+    Promise.all([fetchMenu(), fetchAdminCategories()])
       .then(([m, c]) => {
         setMenu(m)
         setCategories(c)
@@ -46,8 +47,15 @@ export default function AdminMenu() {
     [menu, filter],
   )
 
-  const startNew = () =>
+  const startNew = () => {
+    if (categories.length === 0) {
+      setError('Create a category first — every dish needs one.')
+      setManagingCats(true)
+      return
+    }
+    setError('')
     setEditing({ ...blank, categoryId: categories[0]?.id || '' })
+  }
   const startEdit = (d) => setEditing({ ...d })
   const cancel = () => setEditing(null)
 
@@ -100,22 +108,38 @@ export default function AdminMenu() {
           <h1 className="section-heading mt-1">Manage dishes</h1>
           <div className="mt-2"><UsageGauge resource="dishes" /></div>
         </div>
-        <button onClick={startNew} className="btn-primary">
-          <Plus className="h-4 w-4" /> New dish
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setManagingCats(true)} className="btn-secondary">
+            <Tags className="h-4 w-4" /> Categories
+          </button>
+          <button onClick={startNew} className="btn-primary">
+            <Plus className="h-4 w-4" /> New dish
+          </button>
+        </div>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-        <FilterPill active={filter === 'all'} label="All" onClick={() => setFilter('all')} />
-        {categories.map((c) => (
-          <FilterPill
-            key={c.id}
-            active={filter === c.id}
-            label={`${c.emoji} ${c.name}`}
-            onClick={() => setFilter(c.id)}
-          />
-        ))}
-      </div>
+      {categories.length === 0 ? (
+        <div className="card p-4 flex items-center justify-between gap-3 flex-wrap">
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+            No categories yet. Create one before adding dishes.
+          </p>
+          <button onClick={() => setManagingCats(true)} className="btn-primary !py-1.5 !px-3 text-xs">
+            <Plus className="h-3.5 w-3.5" /> New category
+          </button>
+        </div>
+      ) : (
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+          <FilterPill active={filter === 'all'} label="All" onClick={() => setFilter('all')} />
+          {categories.map((c) => (
+            <FilterPill
+              key={c.id}
+              active={filter === c.id}
+              label={`${c.emoji} ${c.name}`}
+              onClick={() => setFilter(c.id)}
+            />
+          ))}
+        </div>
+      )}
 
       {error && (
         <div className="card p-3 text-chilli-700 text-sm">
@@ -353,6 +377,14 @@ export default function AdminMenu() {
             onError={(msg) => toast.error(msg)}
           />
         )}
+        {managingCats && (
+          <CategoryManager
+            categories={categories}
+            menu={menu}
+            onClose={() => setManagingCats(false)}
+            onChange={setCategories}
+          />
+        )}
       </AnimatePresence>
     </div>
   )
@@ -486,6 +518,159 @@ function RestockDialog({ initial, onClose, onSaved, onError }) {
             <Save className="h-4 w-4" />
             {saving ? 'Saving…' : 'Restock'}
           </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
+function CategoryManager({ categories, menu, onClose, onChange }) {
+  const [name, setName] = useState('')
+  const [emoji, setEmoji] = useState('🍽️')
+  const [saving, setSaving] = useState(false)
+  const [busyId, setBusyId] = useState(null)
+
+  const dishCountFor = (id) => menu.filter((d) => d.categoryId === id).length
+
+  const add = async () => {
+    if (!name.trim()) {
+      toast.error('Category name is required')
+      return
+    }
+    setSaving(true)
+    try {
+      const created = await createCategory({ name: name.trim(), emoji: emoji.trim() || '🍽️' })
+      onChange([...categories, created])
+      setName('')
+      setEmoji('🍽️')
+      toast.success(`Added "${created.name}"`)
+    } catch (e) {
+      toast.error(e?.response?.data?.message || e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const rename = async (cat) => {
+    const next = prompt('Category name', cat.name)
+    if (next == null || next.trim() === cat.name) return
+    if (!next.trim()) {
+      toast.error('Name cannot be empty')
+      return
+    }
+    setBusyId(cat.id)
+    try {
+      const updated = await updateCategory(cat.id, { name: next.trim() })
+      onChange(categories.map((c) => (c.id === updated.id ? updated : c)))
+    } catch (e) {
+      toast.error(e?.response?.data?.message || e.message)
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const remove = async (cat) => {
+    const count = dishCountFor(cat.id)
+    if (count > 0) {
+      toast.error(`Move or delete the ${count} dish(es) in "${cat.name}" first.`)
+      return
+    }
+    if (!confirm(`Delete category "${cat.name}"?`)) return
+    setBusyId(cat.id)
+    try {
+      await deleteCategory(cat.id)
+      onChange(categories.filter((c) => c.id !== cat.id))
+      toast.success(`Deleted "${cat.name}"`)
+    } catch (e) {
+      toast.error(e?.response?.data?.message || e.message)
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+      className="fixed inset-0 z-50 bg-masala-900/40 backdrop-blur-sm flex items-end md:items-center justify-center p-4"
+    >
+      <motion.div
+        initial={{ y: 30, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 30, opacity: 0 }}
+        onClick={(e) => e.stopPropagation()}
+        className="card p-6 w-full max-w-md max-h-[90vh] overflow-y-auto"
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="font-display text-2xl flex items-center gap-2">
+            <Tags className="h-5 w-5 text-saffron-600" /> Categories
+          </h2>
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-saffron-100 dark:hover:bg-masala-700">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mt-5 space-y-2">
+          {categories.length === 0 && (
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+              No categories yet. Add your first one below.
+            </p>
+          )}
+          {categories.map((c) => (
+            <div
+              key={c.id}
+              className="flex items-center gap-2 rounded-2xl border border-saffron-200 dark:border-masala-700 px-3 py-2"
+            >
+              <span className="text-lg">{c.emoji}</span>
+              <span className="flex-1 text-sm font-semibold">{c.name}</span>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                {dishCountFor(c.id)} dish{dishCountFor(c.id) === 1 ? '' : 'es'}
+              </span>
+              <button
+                onClick={() => rename(c)}
+                disabled={busyId === c.id}
+                className="p-1.5 rounded-full hover:bg-saffron-100 dark:hover:bg-masala-700"
+                title="Rename"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={() => remove(c)}
+                disabled={busyId === c.id}
+                className="p-1.5 rounded-full text-chilli-700 hover:bg-chilli-50 dark:hover:bg-chilli-900/30"
+                title="Delete"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-5 border-t border-saffron-200 dark:border-masala-700 pt-4">
+          <span className="text-xs font-semibold uppercase tracking-widest text-masala-700 dark:text-saffron-200">
+            New category
+          </span>
+          <div className="mt-2 flex gap-2">
+            <input
+              value={emoji}
+              onChange={(e) => setEmoji(e.target.value)}
+              maxLength={4}
+              className="w-14 text-center bg-cream rounded-2xl border border-saffron-200 px-2 py-2 text-lg outline-none focus:border-saffron-400"
+              aria-label="Emoji"
+            />
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && add()}
+              placeholder="e.g. Soups"
+              className="flex-1 bg-cream rounded-2xl border border-saffron-200 px-3 py-2 text-sm outline-none focus:border-saffron-400"
+            />
+            <button onClick={add} disabled={saving} className="btn-primary !px-3">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            </button>
+          </div>
         </div>
       </motion.div>
     </motion.div>

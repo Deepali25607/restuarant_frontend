@@ -102,6 +102,15 @@ export const fetchAdminOrders = (status) =>
 export const setOrderStatus = (id, status) =>
   api.patch(`/admin/orders/${id}/status`, { status }).then((r) => r.data)
 
+export const fetchAdminCategories = () =>
+  api.get('/admin/categories').then((r) => r.data)
+export const createCategory = (payload) =>
+  api.post('/admin/categories', payload).then((r) => r.data)
+export const updateCategory = (id, patch) =>
+  api.patch(`/admin/categories/${id}`, patch).then((r) => r.data)
+export const deleteCategory = (id) =>
+  api.delete(`/admin/categories/${id}`).then((r) => r.data)
+
 export const createDish = (dish) =>
   api.post('/admin/menu', dish).then((r) => r.data)
 export const updateDish = (id, patch) =>
