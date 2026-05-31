@@ -25,6 +25,10 @@ import {
   RotateCcw,
   CalendarPlus,
   FileText,
+  Copy,
+  Check,
+  Link2,
+  QrCode,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { toast } from 'sonner'
@@ -43,6 +47,14 @@ import {
 } from '../../lib/api'
 import { useAuthStore } from '../../store/useAuthStore'
 import { usePlatformStore, loadPlatformBranding } from '../../store/usePlatformStore'
+
+// The customer-facing landing for a restaurant is `/order/<slug>`. We build
+// it from the current origin so the link is copy-paste ready on whatever host
+// the console is served from (localhost, staging, prod). The slug is derived
+// from the org's name at creation time, so this URL always routes to the
+// right restaurant.
+const customerUrlFor = (slug) =>
+  `${typeof window !== 'undefined' ? window.location.origin : ''}/order/${slug}`
 
 const blank = {
   name: '',
@@ -74,6 +86,7 @@ export default function SuperAdmin() {
   const [editing, setEditing] = useState(null)
   const [managing, setManaging] = useState(null) // org currently in Manage Subscription dialog
   const [editingPlatform, setEditingPlatform] = useState(false)
+  const [created, setCreated] = useState(null) // freshly onboarded org → show its URL
 
   useEffect(() => {
     if (!token || user?.role !== 'super_admin') return
@@ -107,13 +120,14 @@ export default function SuperAdmin() {
       } else {
         const slug = (editing.slug || editing.name).toLowerCase().replace(/[^a-z0-9-]+/g, '-')
         const payload = { ...editing, slug }
-        const created = await createOrganization(payload)
-        setOrgs((s) => [...s, { ...created, stats: created.stats || { users: 1, dishes: 0, tables: 0, orders: 0, revenue: 0 } }])
-        toast.success(`"${created.name}" created`, {
-          description: created.admin
-            ? `Admin login: ${created.admin.email}`
+        const createdOrg = await createOrganization(payload)
+        setOrgs((s) => [...s, { ...createdOrg, stats: createdOrg.stats || { users: 1, dishes: 0, tables: 0, orders: 0, revenue: 0 } }])
+        toast.success(`"${createdOrg.name}" created`, {
+          description: createdOrg.admin
+            ? `Admin login: ${createdOrg.admin.email}`
             : undefined,
         })
+        setCreated(createdOrg)
       }
       setEditing(null)
     } catch (e) {
@@ -288,6 +302,9 @@ export default function SuperAdmin() {
             onSaved={() => loadPlatformBranding()}
           />
         )}
+        {created && (
+          <NewOrgDialog org={created} onClose={() => setCreated(null)} />
+        )}
       </AnimatePresence>
     </div>
   )
@@ -354,6 +371,7 @@ function OrgCard({ org, onEdit, onToggleActive, onManage }) {
   // page where the diner picks a table. Hard-coding `/1` breaks the demo
   // whenever Table 1 happens to be held by an open order.
   const customerUrl = `/order/${org.slug}`
+  const fullUrl = customerUrlFor(org.slug)
   return (
     <div
       className={clsx(
@@ -412,6 +430,28 @@ function OrgCard({ org, onEdit, onToggleActive, onManage }) {
         <Stat2 label="Orders" value={org.stats.orders} />
       </div>
 
+      {/* Customer landing URL — derived from the org slug, always routes here. */}
+      <div className="mt-3">
+        <div className="text-[10px] uppercase tracking-widest mb-1" style={{ color: 'var(--text-muted)' }}>
+          <Link2 className="inline h-3 w-3 mr-1" /> Customer link
+        </div>
+        <div className="flex items-center gap-2 rounded-2xl border border-saffron-200/70 dark:border-masala-700 px-3 py-1.5" style={{ background: 'var(--input-bg)' }}>
+          <span className="flex-1 truncate text-xs font-mono" style={{ color: 'var(--text)' }} title={fullUrl}>
+            {fullUrl}
+          </span>
+          <CopyButton text={fullUrl} />
+          <Link
+            to={customerUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="p-1.5 rounded-full hover:bg-saffron-100 dark:hover:bg-masala-700 text-saffron-700 dark:text-saffron-300"
+            title="Open customer flow"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+      </div>
+
       <div className="mt-3 flex items-center justify-between">
         <div>
           <div className="text-[10px] uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
@@ -421,14 +461,6 @@ function OrgCard({ org, onEdit, onToggleActive, onManage }) {
             ₹{(org.stats.revenue || 0).toLocaleString()}
           </div>
         </div>
-        <Link
-          to={customerUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="text-xs font-semibold text-saffron-700 dark:text-saffron-300 hover:underline inline-flex items-center gap-1"
-        >
-          Customer flow <ExternalLink className="h-3 w-3" />
-        </Link>
       </div>
 
       <div className="mt-4 flex gap-2 pt-3 border-t border-saffron-200/70 dark:border-masala-700">
@@ -457,6 +489,121 @@ function OrgCard({ org, onEdit, onToggleActive, onManage }) {
         </button>
       </div>
     </div>
+  )
+}
+
+function CopyButton({ text, className }) {
+  const [copied, setCopied] = useState(false)
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      // Clipboard API can be unavailable on insecure origins — fall back to a
+      // hidden textarea + execCommand so copy still works on plain http.
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      try { document.execCommand('copy') } catch { /* give up silently */ }
+      document.body.removeChild(ta)
+    }
+    setCopied(true)
+    toast.success('Link copied')
+    setTimeout(() => setCopied(false), 1500)
+  }
+  return (
+    <button
+      onClick={copy}
+      className={clsx(
+        'p-1.5 rounded-full hover:bg-saffron-100 dark:hover:bg-masala-700 text-saffron-700 dark:text-saffron-300',
+        className,
+      )}
+      title="Copy link"
+      aria-label="Copy link"
+    >
+      {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+    </button>
+  )
+}
+
+function NewOrgDialog({ org, onClose }) {
+  const url = customerUrlFor(org.slug)
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+      className="fixed inset-0 z-50 bg-masala-900/40 backdrop-blur-sm flex items-end md:items-center justify-center p-4"
+    >
+      <motion.div
+        initial={{ y: 30, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 30, opacity: 0 }}
+        onClick={(e) => e.stopPropagation()}
+        className="card p-6 w-full max-w-md"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <div className="h-10 w-10 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.3em] text-emerald-600">Ready</div>
+              <h2 className="font-display text-xl leading-tight" style={{ color: 'var(--text)' }}>
+                {org.name} is live
+              </h2>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-saffron-100 dark:hover:bg-masala-700">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <p className="text-sm mt-4" style={{ color: 'var(--text-muted)' }}>
+          Share this link with the restaurant. It always routes diners to{' '}
+          <span className="font-semibold">{org.name}</span> — print it as a QR or
+          append a table number (<span className="font-mono">{url}/5</span>).
+        </p>
+
+        <div className="mt-4">
+          <div className="text-[10px] uppercase tracking-widest mb-1" style={{ color: 'var(--text-muted)' }}>
+            <QrCode className="inline h-3 w-3 mr-1" /> Customer link
+          </div>
+          <div className="flex items-center gap-2 rounded-2xl border border-saffron-200/70 dark:border-masala-700 px-3 py-2" style={{ background: 'var(--input-bg)' }}>
+            <span className="flex-1 truncate text-sm font-mono" style={{ color: 'var(--text)' }} title={url}>
+              {url}
+            </span>
+            <CopyButton text={url} />
+          </div>
+        </div>
+
+        {org.admin?.email && (
+          <div className="mt-4 rounded-2xl border border-saffron-200/70 dark:border-masala-700 px-3 py-2.5">
+            <div className="text-[10px] uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
+              Admin login
+            </div>
+            <div className="text-sm font-mono mt-0.5" style={{ color: 'var(--text)' }}>
+              {org.admin.email}
+            </div>
+            <div className="text-[10px] mt-0.5 opacity-70">
+              Signs in at /admin/login with the password you set.
+            </div>
+          </div>
+        )}
+
+        <div className="mt-6 flex gap-2 justify-end">
+          <a href={url} target="_blank" rel="noreferrer" className="btn-ghost">
+            <ExternalLink className="h-4 w-4" /> Preview
+          </a>
+          <button onClick={onClose} className="btn-primary">
+            <Check className="h-4 w-4" /> Done
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
   )
 }
 
