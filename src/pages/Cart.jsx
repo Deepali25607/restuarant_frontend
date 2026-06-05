@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { FormattedMessage, useIntl } from 'react-intl'
-import { Minus, Plus, Trash2, MessageSquare, ShoppingBag, Wallet, CreditCard, BadgeIndianRupee, Zap, Sparkles, Phone, Check } from 'lucide-react'
+import { Minus, Plus, Trash2, MessageSquare, ShoppingBag, Wallet, CreditCard, BadgeIndianRupee, Zap, Sparkles, Phone, Check, QrCode, Banknote, X, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   useSessionStore,
@@ -11,11 +11,13 @@ import {
 } from '../store/useSessionStore'
 import {
   placeOrder,
+  setOrderPaymentMethod,
   paymentStatus,
   createRazorpayOrder,
   verifyRazorpayPayment,
   loyaltyLookup,
   loyaltyJoin,
+  fetchOrgBranding,
 } from '../lib/api'
 import { openRazorpayCheckout } from '../lib/razorpay'
 import DishImage from '../components/DishImage'
@@ -29,6 +31,8 @@ export default function Cart() {
   const count = useSessionStore(selectCartCount)
   const subtotal = useSessionStore(selectCartSubtotal)
   const branding = useOrgStore((s) => s.branding)
+  const orgKey = useOrgStore((s) => s.orgKey)
+  const setOrg = useOrgStore((s) => s.setOrg)
   const gstRate = Number.isFinite(branding?.gstRate) ? branding.gstRate : 5
   const taxLabel = branding?.taxLabel || 'GST'
   const tax = Math.round(subtotal * (gstRate / 100))
@@ -38,6 +42,10 @@ export default function Cart() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [rzpReady, setRzpReady] = useState(false)
+  // Order that's been placed and is now awaiting the customer's QR-vs-cash
+  // choice in the post-order popup. null when the popup is closed.
+  const [pendingOrder, setPendingOrder] = useState(null)
+  const paymentQrUrl = branding?.paymentQrUrl || ''
 
   // Loyalty
   const [loyaltyPhone, setLoyaltyPhone] = useState('')
@@ -50,6 +58,15 @@ export default function Cart() {
       .then((s) => setRzpReady(Boolean(s.configured)))
       .catch(() => setRzpReady(false))
   }, [])
+
+  // Refresh branding so the payment QR (uploaded by the admin) is current — the
+  // persisted copy may predate the upload, which would hide the QR option.
+  useEffect(() => {
+    if (!orgKey) return
+    fetchOrgBranding(orgKey)
+      .then((b) => setOrg(b.slug || orgKey, b))
+      .catch(() => {})
+  }, [orgKey, setOrg])
 
   const maxRedeemable = Math.min(
     loyaltyMember?.points || 0,
@@ -108,7 +125,6 @@ export default function Cart() {
   }
 
   const finishOrder = (order) => {
-    clearCart()
     toast.success(intl.formatMessage({ id: 'cart.orderSent' }), {
       description: `#${order.id.slice(-6).toUpperCase()} · ₹${order.amounts.total}`,
     })
@@ -121,6 +137,7 @@ export default function Cart() {
     try {
       const order = await placeOrderNow()
 
+      // Razorpay handles UPI/Card inline when it's configured — unchanged.
       if ((payment === 'upi' || payment === 'card') && rzpReady) {
         const rzpOrder = await createRazorpayOrder(order.id)
         const resp = await openRazorpayCheckout({
@@ -137,9 +154,16 @@ export default function Cart() {
           })
           toast.success(intl.formatMessage({ id: 'cart.paid' }))
         }
+        clearCart()
+        finishOrder(order)
+        return
       }
 
-      finishOrder(order)
+      // Everyone else (Counter, or UPI/Card when Razorpay isn't set up) gets the
+      // QR-vs-cash popup. The order is already placed; the cashier confirms the
+      // payment from their desk afterwards.
+      clearCart()
+      setPendingOrder(order)
     } catch (e) {
       // Table-busy errors get a dedicated treatment: bounce the customer
       // back to the menu, where the "Change table" pill is one tap away.
@@ -161,9 +185,36 @@ export default function Cart() {
     }
   }
 
+  // Rendered above both the empty-cart and full-cart views so it survives the
+  // clearCart() that fires the moment an order is placed.
+  const paymentModal = (
+    <AnimatePresence>
+      {pendingOrder && (
+        <PaymentChoiceModal
+          order={pendingOrder}
+          qrUrl={paymentQrUrl}
+          tableNo={tableNo}
+          onClose={() => finishOrder(pendingOrder)}
+          onChoose={async (method) => {
+            // Recording the choice is best-effort — the order is already placed
+            // and the cashier confirms payment regardless.
+            try {
+              await setOrderPaymentMethod(pendingOrder.id, method)
+            } catch {
+              /* non-fatal */
+            }
+            finishOrder(pendingOrder)
+          }}
+        />
+      )}
+    </AnimatePresence>
+  )
+
   if (count === 0) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-20 text-center">
+      <>
+        {paymentModal}
+        <div className="max-w-2xl mx-auto px-4 py-20 text-center">
         <div className="card p-10">
           <ShoppingBag className="mx-auto h-12 w-12 text-saffron-500" />
           <h2 className="font-display text-2xl mt-4">
@@ -176,11 +227,14 @@ export default function Cart() {
             <FormattedMessage id="cart.empty.cta" />
           </button>
         </div>
-      </div>
+        </div>
+      </>
     )
   }
 
   return (
+    <>
+    {paymentModal}
     <div className="max-w-5xl mx-auto px-4 md:px-8 pt-6 pb-32">
       <span className="eyebrow"><FormattedMessage id="cart.eyebrow" /></span>
       <h1 className="section-heading mt-2"><FormattedMessage id="cart.title" /></h1>
@@ -347,6 +401,7 @@ export default function Cart() {
         </aside>
       </div>
     </div>
+    </>
   )
 }
 
@@ -373,6 +428,104 @@ function PayOption({ active, onClick, icon, label }) {
       {icon}
       {label}
     </button>
+  )
+}
+
+function PaymentChoiceModal({ order, qrUrl, tableNo, onChoose, onClose }) {
+  const [busy, setBusy] = useState('')
+  const choose = async (method) => {
+    if (busy) return
+    setBusy(method)
+    await onChoose(method)
+  }
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+      className="fixed inset-0 z-50 bg-masala-900/50 backdrop-blur-sm flex items-end md:items-center justify-center p-4"
+    >
+      <motion.div
+        initial={{ y: 30, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 30, opacity: 0 }}
+        onClick={(e) => e.stopPropagation()}
+        className="card p-6 w-full max-w-md max-h-[92vh] overflow-y-auto"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <span className="eyebrow">
+              <CheckCircle2 className="h-3.5 w-3.5" /> <FormattedMessage id="cart.payNow.placed" />
+            </span>
+            <h2 className="font-display text-2xl mt-1">
+              <FormattedMessage id="cart.payNow.title" />
+            </h2>
+            <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
+              <FormattedMessage
+                id="cart.payNow.subtitle"
+                values={{
+                  table: tableNo,
+                  id: `#${order.id.slice(-6).toUpperCase()}`,
+                  total: order.amounts.total,
+                }}
+              />
+            </p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-saffron-100 dark:hover:bg-masala-700">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {qrUrl && (
+          <div className="mt-5 rounded-2xl border border-saffron-200 dark:border-masala-700 p-4 bg-saffron-50/60 dark:bg-masala-800/40 text-center">
+            <div className="inline-flex items-center gap-1.5 text-sm font-semibold">
+              <QrCode className="h-4 w-4 text-saffron-600" />
+              <FormattedMessage id="cart.payNow.scanTitle" />
+            </div>
+            <div className="mt-3 mx-auto w-48 h-48 rounded-2xl bg-white border border-saffron-200 overflow-hidden flex items-center justify-center">
+              <img src={qrUrl} alt="Payment QR" className="w-full h-full object-contain p-1.5" />
+            </div>
+            <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
+              <FormattedMessage id="cart.payNow.scanHint" />
+            </p>
+            <button
+              onClick={() => choose('qr')}
+              disabled={Boolean(busy)}
+              className="btn-primary w-full mt-3 disabled:opacity-60"
+            >
+              <QrCode className="h-4 w-4" />
+              <FormattedMessage id="cart.payNow.paidByQr" />
+            </button>
+          </div>
+        )}
+
+        <button
+          onClick={() => choose('counter')}
+          disabled={Boolean(busy)}
+          className={clsx(
+            'mt-3 w-full rounded-2xl border p-4 text-left flex items-center gap-3 transition disabled:opacity-60',
+            'bg-white dark:bg-masala-800 border-saffron-200 dark:border-masala-700 hover:bg-saffron-50 dark:hover:bg-masala-700',
+          )}
+        >
+          <div className="h-10 w-10 rounded-full bg-curry-gradient flex items-center justify-center shadow-warm shrink-0">
+            <Banknote className="h-5 w-5 text-white" />
+          </div>
+          <div className="leading-tight">
+            <div className="font-display text-lg">
+              <FormattedMessage id="cart.payNow.cash" />
+            </div>
+            <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              <FormattedMessage id="cart.payNow.cashHint" />
+            </div>
+          </div>
+        </button>
+
+        <p className="text-[11px] mt-4 text-center" style={{ color: 'var(--text-muted)' }}>
+          <FormattedMessage id="cart.payNow.cashierNote" />
+        </p>
+      </motion.div>
+    </motion.div>
   )
 }
 

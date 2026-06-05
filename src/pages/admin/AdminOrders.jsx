@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Activity, Filter, ChefHat, Bell, CheckCircle2, Clock, Flame, HandPlatter, Soup, AlertTriangle, ArrowRight, Loader2 } from 'lucide-react'
+import { Activity, Filter, ChefHat, Bell, CheckCircle2, Clock, Flame, HandPlatter, Soup, AlertTriangle, ArrowRight, Loader2, Lock, QrCode } from 'lucide-react'
 import clsx from 'clsx'
 import { toast } from 'sonner'
 import { fetchAdminOrders, setOrderStatus } from '../../lib/api'
@@ -139,6 +139,8 @@ function OrderCard({ order, onSetStatus }) {
   const next = nextStatusOf(order.status)
   const ageMin = Math.floor((Date.now() - new Date(order.createdAt)) / 60000)
   const [pushing, setPushing] = useState(false)
+  const paid = order.payment?.status === 'paid'
+  const claimed = Boolean(order.payment?.claimedAt)
 
   const push = async (target) => {
     setPushing(true)
@@ -176,6 +178,19 @@ function OrderCard({ order, onSetStatus }) {
           <span className="text-[11px] inline-flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
             <Clock className="h-3 w-3" /> {ageMin} min
           </span>
+          <span
+            className={clsx(
+              'inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full border',
+              paid
+                ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                : claimed
+                  ? 'bg-indigo-100 text-indigo-700 border-indigo-200'
+                  : 'bg-amber-100 text-amber-700 border-amber-200',
+            )}
+          >
+            {paid ? <CheckCircle2 className="h-3 w-3" /> : claimed ? <QrCode className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
+            {paid ? 'Paid' : claimed ? 'QR reported' : 'Unpaid'}
+          </span>
         </div>
       </div>
 
@@ -195,23 +210,33 @@ function OrderCard({ order, onSetStatus }) {
           <span className="font-display text-lg" style={{ color: 'var(--text)' }}>
             ₹{order.amounts?.total}
           </span>
-          <select
-            value={order.status}
-            onChange={(e) => push(e.target.value)}
-            disabled={pushing}
-            title="Jump to any stage"
-            className="text-xs font-semibold rounded-full border border-saffron-300 dark:border-masala-600 bg-white dark:bg-masala-800 px-3 py-1.5 outline-none focus:border-saffron-500"
-            style={{ color: 'var(--text)' }}
-          >
-            {STATUSES.map((s) => (
-              <option key={s.key} value={s.key}>
-                Jump to: {s.label}
-              </option>
-            ))}
-          </select>
+          {paid && (
+            <select
+              value={order.status}
+              onChange={(e) => push(e.target.value)}
+              disabled={pushing}
+              title="Jump to any stage"
+              className="text-xs font-semibold rounded-full border border-saffron-300 dark:border-masala-600 bg-white dark:bg-masala-800 px-3 py-1.5 outline-none focus:border-saffron-500"
+              style={{ color: 'var(--text)' }}
+            >
+              {STATUSES.map((s) => (
+                <option key={s.key} value={s.key}>
+                  Jump to: {s.label}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
-        {next ? (
+        {!paid ? (
+          // Payment gate — the kitchen can't start until the cashier confirms.
+          <div className="text-xs flex items-center justify-center gap-1.5 py-2 px-3 rounded-2xl bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-900/40 text-center">
+            <Lock className="h-3.5 w-3.5 shrink-0" />
+            {claimed
+              ? 'Customer reported QR payment — confirm at the Cashier desk to start'
+              : 'Awaiting payment — confirm at the Cashier desk to start'}
+          </div>
+        ) : next ? (
           <button
             type="button"
             onClick={() => push(next.key)}

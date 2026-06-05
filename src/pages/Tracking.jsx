@@ -12,10 +12,11 @@ import {
   Bell,
   HandPlatter,
   Star,
+  QrCode,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { toast } from 'sonner'
-import { getOrder } from '../lib/api'
+import { getOrder, setOrderPaymentMethod, fetchOrgBranding } from '../lib/api'
 import { getSocket } from '../lib/socket'
 import { useOrgStore } from '../store/useOrgStore'
 
@@ -32,6 +33,73 @@ const TOAST_STAGES = new Set(['preparing', 'cooking', 'ready', 'served'])
 
 const stageIndex = (status) => Math.max(0, STAGES.findIndex((s) => s.key === status))
 
+function PayByQrBlock({ order, qrUrl, onClaimed }) {
+  const intl = useIntl()
+  const [busy, setBusy] = useState(false)
+  const claimed = Boolean(order.payment?.claimedAt)
+
+  const claim = async () => {
+    setBusy(true)
+    try {
+      const updated = await setOrderPaymentMethod(order.id, 'qr')
+      onClaimed(updated)
+      toast.success(intl.formatMessage({ id: 'tracking.qr.claimed' }))
+    } catch (e) {
+      toast.error(e?.response?.data?.message || e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="mt-4 rounded-2xl border border-saffron-200 dark:border-masala-700 p-4 bg-saffron-50/60 dark:bg-masala-800/40 text-center">
+      <div className="inline-flex items-center gap-1.5 text-sm font-semibold">
+        <QrCode className="h-4 w-4 text-saffron-600" />
+        <FormattedMessage id="tracking.qr.title" />
+      </div>
+      <div className="mt-3 mx-auto w-44 h-44 rounded-2xl bg-white border border-saffron-200 overflow-hidden flex items-center justify-center">
+        <img src={qrUrl} alt="Payment QR" className="w-full h-full object-contain p-1.5" />
+      </div>
+      <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
+        <FormattedMessage id="tracking.qr.hint" />
+      </p>
+      {!claimed && (
+        <button onClick={claim} disabled={busy} className="btn-primary w-full mt-3 disabled:opacity-60">
+          <QrCode className="h-4 w-4" />
+          <FormattedMessage id="cart.payNow.paidByQr" />
+        </button>
+      )}
+    </div>
+  )
+}
+
+function PaymentStatusPanel({ payment }) {
+  const paid = payment?.status === 'paid'
+  const claimed = Boolean(payment?.claimedAt)
+  if (paid) {
+    return (
+      <div className="mt-4 rounded-2xl border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-2.5 flex items-center gap-2 text-sm text-emerald-800 dark:text-emerald-200">
+        <CheckCircle2 className="h-4 w-4 shrink-0" />
+        <FormattedMessage id="tracking.pay.confirmed" />
+      </div>
+    )
+  }
+  if (claimed) {
+    return (
+      <div className="mt-4 rounded-2xl border border-indigo-300 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 px-3 py-2.5 flex items-center gap-2 text-sm text-indigo-800 dark:text-indigo-200">
+        <CheckCircle2 className="h-4 w-4 shrink-0" />
+        <FormattedMessage id="tracking.pay.claimed" />
+      </div>
+    )
+  }
+  return (
+    <div className="text-xs mt-3" style={{ color: 'var(--text-muted)' }}>
+      <FormattedMessage id="tracking.payment" />: {(payment?.method || '').toUpperCase()} ·{' '}
+      <FormattedMessage id="tracking.pay.pending" />
+    </div>
+  )
+}
+
 export default function Tracking() {
   const intl = useIntl()
   const { orderId } = useParams()
@@ -39,8 +107,20 @@ export default function Tracking() {
   const [order, setOrder] = useState(null)
   const [error, setError] = useState('')
   const branding = useOrgStore((s) => s.branding)
+  const orgKey = useOrgStore((s) => s.orgKey)
+  const setOrg = useOrgStore((s) => s.setOrg)
   const gstRate = Number.isFinite(branding?.gstRate) ? branding.gstRate : 5
   const taxLabel = branding?.taxLabel || 'GST'
+  const paymentQrUrl = branding?.paymentQrUrl || ''
+
+  // Keep branding fresh so the payment QR is current even if the customer
+  // landed here from a long-lived session.
+  useEffect(() => {
+    if (!orgKey) return
+    fetchOrgBranding(orgKey)
+      .then((b) => setOrg(b.slug || orgKey, b))
+      .catch(() => {})
+  }, [orgKey, setOrg])
 
   useEffect(() => {
     let alive = true
@@ -66,11 +146,23 @@ export default function Tracking() {
       }
     }
     socket.on('order:updated', onUpdate)
+    const onPaid = (o) => {
+      if (o.id === orderId && alive) {
+        setOrder((prev) => {
+          if (prev && prev.payment?.status !== 'paid') {
+            toast.success(intl.formatMessage({ id: 'tracking.toast.paid' }))
+          }
+          return o
+        })
+      }
+    }
+    socket.on('order:paid', onPaid)
     const id = setInterval(load, 10000)
     return () => {
       alive = false
       clearInterval(id)
       socket.off('order:updated', onUpdate)
+      socket.off('order:paid', onPaid)
     }
   }, [orderId, intl])
 
@@ -214,9 +306,11 @@ export default function Tracking() {
               <span><FormattedMessage id="common.total" /></span><span>₹{order.amounts.total}</span>
             </div>
           </div>
-          <div className="text-xs mt-3" style={{ color: 'var(--text-muted)' }}>
-            <FormattedMessage id="tracking.payment" />: {order.payment.method.toUpperCase()} · {order.payment.status}
-          </div>
+          <PaymentStatusPanel payment={order.payment} />
+
+          {order.payment?.status !== 'paid' && paymentQrUrl && (
+            <PayByQrBlock order={order} qrUrl={paymentQrUrl} onClaimed={setOrder} />
+          )}
 
           {served && (
             <button onClick={() => navigate(`/rate/${order.id}`)} className="btn-primary w-full mt-5">

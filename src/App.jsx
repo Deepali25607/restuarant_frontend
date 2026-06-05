@@ -21,6 +21,7 @@ const AdminReports = lazy(() => import('./pages/admin/AdminReports.jsx'))
 const AdminExpenses = lazy(() => import('./pages/admin/AdminExpenses.jsx'))
 const AdminAudit = lazy(() => import('./pages/admin/AdminAudit.jsx'))
 const AdminLoyalty = lazy(() => import('./pages/admin/AdminLoyalty.jsx'))
+const AdminSettings = lazy(() => import('./pages/admin/AdminSettings.jsx'))
 const SuperAdmin = lazy(() => import('./pages/admin/SuperAdmin.jsx'))
 const KitchenDashboard = lazy(() => import('./pages/kitchen/KitchenDashboard.jsx'))
 const CashierPortal = lazy(() => import('./pages/cashier/CashierPortal.jsx'))
@@ -74,6 +75,7 @@ export default function App() {
         <Route path="expenses" element={<Suspense fallback={null}><AdminExpenses /></Suspense>} />
         <Route path="reports" element={<Suspense fallback={null}><AdminReports /></Suspense>} />
         <Route path="loyalty" element={<Suspense fallback={null}><AdminLoyalty /></Suspense>} />
+        <Route path="settings" element={<Suspense fallback={null}><AdminSettings /></Suspense>} />
         <Route path="audit" element={<Suspense fallback={null}><AdminAudit /></Suspense>} />
       </Route>
 

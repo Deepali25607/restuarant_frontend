@@ -5,12 +5,15 @@ import {
   Wallet,
   BadgeIndianRupee,
   CreditCard,
+  QrCode,
+  Banknote,
   Coins,
   CheckCircle2,
   Receipt,
   X,
   Split,
   LogOut,
+  LayoutGrid,
   Flame,
   Printer,
   Zap,
@@ -28,6 +31,7 @@ import {
   createRazorpayOrder,
   verifyRazorpayPayment,
   loyaltyLookup,
+  fetchOrgBranding,
 } from '../../lib/api'
 import { openRazorpayCheckout } from '../../lib/razorpay'
 import { getSocket } from '../../lib/socket'
@@ -41,12 +45,23 @@ export default function CashierPortal() {
   const [paidToday, setPaidToday] = useState(0)
   const [error, setError] = useState('')
   const [rzpReady, setRzpReady] = useState(false)
+  const [qrUrl, setQrUrl] = useState('')
 
   useEffect(() => {
     paymentStatus()
       .then((s) => setRzpReady(Boolean(s.configured)))
       .catch(() => {})
   }, [])
+
+  // Pull the restaurant's payment QR (public branding) so we can print it on
+  // receipts for customers who'd rather scan-and-pay at the table.
+  useEffect(() => {
+    const key = user?.organization?.slug || user?.organization?.id
+    if (!key) return
+    fetchOrgBranding(key)
+      .then((b) => setQrUrl(b.paymentQrUrl || ''))
+      .catch(() => {})
+  }, [user])
 
   useEffect(() => {
     if (!token) return
@@ -68,14 +83,23 @@ export default function CashierPortal() {
       setPaidToday((v) => v + (order.amounts?.total || 0))
       load()
     }
+    const onClaim = (order) => {
+      toast.info(`Table ${order.tableNo} reports a QR payment`, {
+        description: `#${order.id.slice(-6).toUpperCase()} · ₹${order.amounts?.total} — verify & confirm to settle`,
+        duration: 10000,
+      })
+      load()
+    }
     socket.on('order:new', refresh)
     socket.on('order:updated', refresh)
     socket.on('order:paid', onPaid)
+    socket.on('order:paymentClaimed', onClaim)
     return () => {
       alive = false
       socket.off('order:new', refresh)
       socket.off('order:updated', refresh)
       socket.off('order:paid', onPaid)
+      socket.off('order:paymentClaimed', onClaim)
     }
   }, [token])
 
@@ -116,6 +140,11 @@ export default function CashierPortal() {
               </div>
             </div>
             <ThemeToggle />
+            {(user.permissions || []).includes('dashboard.view') && (
+              <button onClick={() => navigate('/admin')} className="btn-ghost">
+                <LayoutGrid className="h-4 w-4" /> Console
+              </button>
+            )}
             <button
               onClick={() => {
                 logout()
@@ -159,6 +188,7 @@ export default function CashierPortal() {
           <BillModal
             group={active}
             rzpReady={rzpReady}
+            qrUrl={qrUrl}
             onClose={() => setActive(null)}
             onPaid={(order) => {
               toast.success(`Table ${order.tableNo} paid · ₹${order.amounts.total}`)
@@ -173,12 +203,16 @@ export default function CashierPortal() {
 }
 
 function TableBillCard({ group, onOpen }) {
+  const hasClaim = group.orders.some((o) => o.payment?.claimedAt && o.payment?.status !== 'paid')
   return (
     <motion.button
       layout
       onClick={onOpen}
       whileHover={{ y: -2 }}
-      className="card p-4 text-left flex flex-col gap-3 relative overflow-hidden"
+      className={clsx(
+        'card p-4 text-left flex flex-col gap-3 relative overflow-hidden',
+        hasClaim && 'ring-2 ring-indigo-400',
+      )}
     >
       <div className="absolute -top-10 -right-10 h-28 w-28 rounded-full bg-saffron-200/40 blur-2xl pointer-events-none" />
       <div className="relative flex items-start justify-between">
@@ -195,14 +229,24 @@ function TableBillCard({ group, onOpen }) {
       <div className="relative font-display text-2xl text-masala-900">
         ₹{group.total.toLocaleString()}
       </div>
-      <div className="relative text-xs text-saffron-700 font-semibold">
-        Tap to settle →
-      </div>
+      {hasClaim ? (
+        <div className="relative inline-flex items-center gap-1.5 text-xs font-bold text-indigo-700">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500" />
+          </span>
+          <QrCode className="h-3.5 w-3.5" /> QR payment reported · confirm →
+        </div>
+      ) : (
+        <div className="relative text-xs text-saffron-700 font-semibold">
+          Tap to settle →
+        </div>
+      )}
     </motion.button>
   )
 }
 
-function BillModal({ group, rzpReady, onClose, onPaid, onError }) {
+function BillModal({ group, rzpReady, qrUrl, onClose, onPaid, onError }) {
   const [tip, setTip] = useState(0)
   const [splits, setSplits] = useState(null)
   const [loyaltyPhone, setLoyaltyPhone] = useState('')
@@ -302,12 +346,15 @@ function BillModal({ group, rzpReady, onClose, onPaid, onError }) {
 
         {group.orders.map((o) => (
           <div key={o.id} className="mt-5 rounded-2xl border border-saffron-200 bg-white p-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <div className="text-xs text-masala-600">
                 #{o.id.slice(-6).toUpperCase()} · {new Date(o.createdAt).toLocaleTimeString()}
               </div>
-              <div className="text-xs font-bold uppercase tracking-widest text-saffron-700">
-                {o.status}
+              <div className="flex items-center gap-2">
+                <PaymentMethodBadge method={o.payment?.method} />
+                <div className="text-xs font-bold uppercase tracking-widest text-saffron-700">
+                  {o.status}
+                </div>
               </div>
             </div>
             <ul className="mt-3 space-y-1 text-sm">
@@ -362,12 +409,33 @@ function BillModal({ group, rzpReady, onClose, onPaid, onError }) {
               </div>
             )}
 
+            {o.payment?.claimedAt && o.payment?.status !== 'paid' && (
+              <div className="mt-3 rounded-2xl border border-indigo-300 bg-indigo-50 px-3 py-2.5 flex items-center gap-2 text-sm text-indigo-800">
+                <QrCode className="h-4 w-4 shrink-0" />
+                <span>
+                  Customer reported a <b>QR payment</b> at{' '}
+                  {new Date(o.payment.claimedAt).toLocaleTimeString()}. Verify it landed,
+                  then confirm with <b>Mark QR paid</b>.
+                </span>
+              </div>
+            )}
+
             <div className="mt-4 flex flex-wrap gap-2">
               {rzpReady && (
                 <PayBtn icon={<Zap className="h-4 w-4" />} onClick={() => chargeOnline(o.id)}>
                   Charge via Razorpay
                 </PayBtn>
               )}
+              <button
+                onClick={() => pay(o.id, 'qr')}
+                className={clsx(
+                  'btn-primary !py-2 !px-3 text-xs',
+                  o.payment?.claimedAt && o.payment?.status !== 'paid' && 'ring-2 ring-indigo-400 ring-offset-1',
+                )}
+              >
+                <QrCode className="h-4 w-4" />
+                Mark QR paid
+              </button>
               <PayBtn icon={<BadgeIndianRupee className="h-4 w-4" />} onClick={() => pay(o.id, 'upi')}>
                 Mark UPI paid
               </PayBtn>
@@ -378,7 +446,7 @@ function BillModal({ group, rzpReady, onClose, onPaid, onError }) {
                 Mark cash paid
               </PayBtn>
               <button
-                onClick={() => printReceipt(o, group.tableNo, tip)}
+                onClick={() => printReceipt(o, group.tableNo, tip, qrUrl)}
                 className="btn-ghost !py-2 !px-3"
               >
                 <Printer className="h-4 w-4" /> Print
@@ -445,6 +513,27 @@ function BillModal({ group, rzpReady, onClose, onPaid, onError }) {
   )
 }
 
+// The method the customer picked in the post-order popup (QR vs cash) so the
+// cashier knows what to expect before confirming. Razorpay/UPI/card orders are
+// settled inline, so we only surface the two self-service intents prominently.
+function PaymentMethodBadge({ method }) {
+  const map = {
+    qr: { label: 'QR', icon: QrCode, cls: 'bg-indigo-100 text-indigo-700 border-indigo-200' },
+    counter: { label: 'Cash', icon: Banknote, cls: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+    upi: { label: 'UPI', icon: BadgeIndianRupee, cls: 'bg-saffron-100 text-saffron-700 border-saffron-200' },
+    card: { label: 'Card', icon: CreditCard, cls: 'bg-saffron-100 text-saffron-700 border-saffron-200' },
+    razorpay: { label: 'Online', icon: Zap, cls: 'bg-saffron-100 text-saffron-700 border-saffron-200' },
+  }
+  const m = map[method]
+  if (!m) return null
+  const Icon = m.icon
+  return (
+    <span className={clsx('inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide', m.cls)}>
+      <Icon className="h-3 w-3" /> {m.label}
+    </span>
+  )
+}
+
 function PayBtn({ icon, onClick, children }) {
   return (
     <button onClick={onClick} className="btn-primary !py-2 !px-3 text-xs">
@@ -454,7 +543,7 @@ function PayBtn({ icon, onClick, children }) {
   )
 }
 
-function printReceipt(o, tableNo, tip) {
+function printReceipt(o, tableNo, tip, qrUrl) {
   const w = window.open('', '_blank')
   if (!w) return
   const rows = o.items
@@ -464,6 +553,16 @@ function printReceipt(o, tableNo, tip) {
     )
     .join('')
   const total = o.amounts.total + (tip || 0)
+  // Print a "scan to pay" QR only while the bill is still open — a paid receipt
+  // shouldn't invite another payment.
+  const showQr = qrUrl && o.payment?.status !== 'paid'
+  const qrBlock = showQr
+    ? `<div class="qr">
+         <div class="qrlabel">SCAN TO PAY · ₹${total}</div>
+         <img src="${escape(qrUrl)}" alt="Payment QR" />
+         <div class="qrhint">UPI · show this to the cashier once paid</div>
+       </div>`
+    : ''
   w.document.write(`<html><head><title>Receipt T${tableNo}</title><style>
     body{font-family:ui-monospace,Consolas,monospace;font-size:12px;width:280px;padding:14px;color:#111}
     h2{font-family:'Playfair Display',serif;color:#9a3412;margin:0}
@@ -472,6 +571,10 @@ function printReceipt(o, tableNo, tip) {
     td{padding:3px 0;border-bottom:1px dashed #ddd}
     .total{font-weight:700;font-size:14px;margin-top:8px;border-top:2px solid #000;padding-top:6px;display:flex;justify-content:space-between}
     .meta{margin-top:6px;color:#555}
+    .qr{margin-top:14px;padding-top:10px;border-top:1px dashed #999;text-align:center}
+    .qrlabel{font-weight:700;font-size:11px;letter-spacing:.15em;color:#3730a3}
+    .qr img{width:150px;height:150px;object-fit:contain;margin:8px auto;display:block}
+    .qrhint{font-size:9px;color:#777}
     </style></head><body>
     <div style="text-align:center">
       <h2>Masala Story</h2>
@@ -481,6 +584,7 @@ function printReceipt(o, tableNo, tip) {
     <table>${rows}</table>
     <div class="meta" style="margin-top:8px">Subtotal ₹${o.amounts.subtotal} · GST ₹${o.amounts.tax}${tip ? ` · Tip ₹${tip}` : ''}</div>
     <div class="total"><span>TOTAL</span><span>₹${total}</span></div>
+    ${qrBlock}
     <div style="text-align:center;margin-top:16px;color:#888">Thank you · Phir milenge!</div>
     <script>window.onload=()=>window.print()</script>
     </body></html>`)

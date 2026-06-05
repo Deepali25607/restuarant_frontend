@@ -85,6 +85,8 @@ export const fetchTableTab = (tableNo) =>
   api.get(`/tables/${tableNo}/tab`).then((r) => r.data)
 export const placeOrder = (payload) =>
   api.post('/orders', payload).then((r) => r.data)
+export const setOrderPaymentMethod = (orderId, method) =>
+  api.patch(`/orders/${orderId}/payment-method`, { method }).then((r) => r.data)
 export const getOrder = (orderId) =>
   api.get(`/orders/${orderId}`).then((r) => r.data)
 export const submitRating = (orderId, payload) =>
@@ -156,6 +158,12 @@ export const updateExpense = (id, payload) =>
   api.patch(`/admin/expenses/${id}`, payload).then((r) => r.data)
 export const deleteExpense = (id) =>
   api.delete(`/admin/expenses/${id}`).then((r) => r.data)
+
+// Restaurant settings (self-service for the tenant admin/manager).
+export const fetchOrgSettings = () =>
+  api.get('/admin/organization').then((r) => r.data)
+export const updateOrgSettings = (patch) =>
+  api.patch('/admin/organization', patch).then((r) => r.data)
 
 export const uploadImage = (file) => {
   const form = new FormData()

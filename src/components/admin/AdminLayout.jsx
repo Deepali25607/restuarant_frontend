@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { NavLink, Outlet, useNavigate, Navigate, useLocation } from 'react-router-dom'
-import { LayoutDashboard, UtensilsCrossed, Table2, ClipboardList, Users, LogOut, Flame, Bell, BarChart3, Wallet, ScrollText, Sparkles } from 'lucide-react'
+import { LayoutDashboard, UtensilsCrossed, Table2, ClipboardList, Users, LogOut, Flame, BarChart3, Wallet, ScrollText, Sparkles, Settings, Coins } from 'lucide-react'
 import clsx from 'clsx'
 import { toast } from 'sonner'
 import { useAuthStore } from '../../store/useAuthStore'
@@ -8,17 +8,20 @@ import { usePlatformStore } from '../../store/usePlatformStore'
 import ThemeToggle from '../ThemeToggle'
 import { getSocket } from '../../lib/socket'
 import SubscriptionBanner from './SubscriptionBanner'
+import NotificationBell from './NotificationBell'
 
 const navItems = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true, perm: 'dashboard.view' },
   { to: '/admin/orders', label: 'Live orders', icon: ClipboardList, perm: 'orders.view' },
   { to: '/admin/menu', label: 'Menu', icon: UtensilsCrossed, perm: 'menu.manage' },
   { to: '/admin/tables', label: 'Tables', icon: Table2, perm: 'tables.view' },
+  { to: '/cashier', label: 'Cashier desk', icon: Coins, perm: 'billing.collect' },
   { to: '/admin/staff', label: 'Staff', icon: Users, perm: 'staff.view' },
   { to: '/admin/expenses', label: 'Expenses', icon: Wallet, perm: 'expenses.view' },
   { to: '/admin/reports', label: 'Reports', icon: BarChart3, perm: 'reports.view' },
   { to: '/admin/loyalty', label: 'Loyalty', icon: Sparkles, perm: 'loyalty.view' },
   { to: '/admin/audit', label: 'Audit log', icon: ScrollText, perm: 'audit.view' },
+  { to: '/admin/settings', label: 'Settings', icon: Settings, perm: 'settings.manage' },
 ]
 
 export default function AdminLayout() {
@@ -159,10 +162,7 @@ export default function AdminLayout() {
             </div>
             <div className="flex items-center gap-2">
               <ThemeToggle />
-              <button className="relative h-10 w-10 rounded-full bg-white dark:bg-masala-800 border border-saffron-200 dark:border-masala-700 hover:bg-saffron-50 dark:hover:bg-masala-700 flex items-center justify-center">
-                <Bell className="h-4 w-4 text-masala-800 dark:text-saffron-200" />
-                <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-chilli-500 border-2 border-white dark:border-masala-800" />
-              </button>
+              <NotificationBell perms={user.permissions || []} />
             </div>
           </div>
 

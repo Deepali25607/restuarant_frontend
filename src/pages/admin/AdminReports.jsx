@@ -21,6 +21,15 @@ const RANGES = [
   { key: 'today', label: 'Today', days: 1 },
 ]
 
+// How a settled payment is labelled & coloured in the Settlements panel.
+const SETTLE_METHODS = [
+  { key: 'qr', label: 'QR (UPI scan)', color: 'bg-indigo-500' },
+  { key: 'counter', label: 'Cash', color: 'bg-emerald-500' },
+  { key: 'upi', label: 'UPI', color: 'bg-saffron-500' },
+  { key: 'card', label: 'Card', color: 'bg-orange-500' },
+  { key: 'razorpay', label: 'Online', color: 'bg-amber-500' },
+]
+
 const isoDate = (d) => d.toISOString().slice(0, 10)
 
 export default function AdminReports() {
@@ -59,6 +68,13 @@ export default function AdminReports() {
       [],
       ['Date', 'Revenue', 'Orders'],
       ...data.daily.map((d) => [d.date, d.revenue, d.orders]),
+      [],
+      ['Settlement method', 'Payments', 'Amount'],
+      ...SETTLE_METHODS.map((m) => {
+        const v = (data.settlements?.byMethod || {})[m.key] || { count: 0, amount: 0 }
+        return [m.label, v.count, v.amount]
+      }),
+      ['Total settled', data.settlements?.count || 0, data.settlements?.total || 0],
       [],
       ['Dish', 'Quantity', 'Revenue'],
       ...data.popular.map((p) => [p.name, p.qty, p.revenue]),
@@ -102,7 +118,10 @@ export default function AdminReports() {
   ]
 
   const max = Math.max(1, ...data.daily.map((d) => d.revenue))
-  const totalPayments = Math.max(1, data.payments.upi + data.payments.card + data.payments.counter)
+  const settlements = data.settlements || { total: 0, count: 0, byMethod: {} }
+  const settledRows = SETTLE_METHODS.map((m) => ({ ...m, ...(settlements.byMethod[m.key] || { count: 0, amount: 0 }) }))
+    .filter((r) => r.count > 0)
+    .sort((a, b) => b.amount - a.amount)
 
   return (
     <div className="space-y-6">
@@ -199,28 +218,38 @@ export default function AdminReports() {
         </div>
 
         <div className="card p-6">
-          <h2 className="font-display text-xl text-masala-900">Payment mix</h2>
-          <ul className="mt-4 space-y-3">
-            {[
-              { key: 'upi', label: 'UPI' },
-              { key: 'card', label: 'Card' },
-              { key: 'counter', label: 'Counter' },
-            ].map(({ key, label }) => {
-              const v = data.payments[key] || 0
-              const pct = Math.round((v / totalPayments) * 100)
-              return (
-                <li key={key}>
-                  <div className="flex justify-between text-sm">
-                    <span className="font-semibold">{label}</span>
-                    <span className="text-masala-700">₹{v} · {pct}%</span>
-                  </div>
-                  <div className="mt-1 h-2 rounded-full bg-saffron-100 overflow-hidden">
-                    <div className="h-full bg-curry-gradient" style={{ width: `${pct}%` }} />
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
+          <div className="flex items-baseline justify-between">
+            <h2 className="font-display text-xl text-masala-900">Settlements</h2>
+            <span className="text-xs text-masala-600">{settlements.count} payment{settlements.count === 1 ? '' : 's'}</span>
+          </div>
+          <div className="font-display text-2xl text-masala-900 mt-1">
+            ₹{settlements.total.toLocaleString()}
+          </div>
+          {settledRows.length === 0 ? (
+            <div className="mt-4 text-sm text-masala-600">No settled payments in this window yet.</div>
+          ) : (
+            <ul className="mt-4 space-y-3">
+              {settledRows.map((r) => {
+                const pct = settlements.total ? Math.round((r.amount / settlements.total) * 100) : 0
+                return (
+                  <li key={r.key}>
+                    <div className="flex justify-between text-sm">
+                      <span className="font-semibold inline-flex items-center gap-1.5">
+                        <span className={clsx('h-2.5 w-2.5 rounded-full', r.color)} />
+                        {r.label}
+                      </span>
+                      <span className="text-masala-700">
+                        ₹{r.amount.toLocaleString()} · {r.count} · {pct}%
+                      </span>
+                    </div>
+                    <div className="mt-1 h-2 rounded-full bg-saffron-100 overflow-hidden">
+                      <div className={clsx('h-full', r.color)} style={{ width: `${pct}%` }} />
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
         </div>
       </div>
 
