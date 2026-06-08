@@ -14,6 +14,7 @@ import {
   Split,
   LogOut,
   LayoutGrid,
+  KeyRound,
   Flame,
   Printer,
   Zap,
@@ -36,6 +37,8 @@ import {
 import { openRazorpayCheckout } from '../../lib/razorpay'
 import { getSocket } from '../../lib/socket'
 import ThemeToggle from '../../components/ThemeToggle'
+import ChangePasswordModal from '../../components/ChangePasswordModal'
+import { locationLabel } from '../../lib/location'
 
 export default function CashierPortal() {
   const { user, token, logout } = useAuthStore()
@@ -46,6 +49,7 @@ export default function CashierPortal() {
   const [error, setError] = useState('')
   const [rzpReady, setRzpReady] = useState(false)
   const [qrUrl, setQrUrl] = useState('')
+  const [pwOpen, setPwOpen] = useState(false)
 
   useEffect(() => {
     paymentStatus()
@@ -84,7 +88,7 @@ export default function CashierPortal() {
       load()
     }
     const onClaim = (order) => {
-      toast.info(`Table ${order.tableNo} reports a QR payment`, {
+      toast.info(`${locationLabel(order)} reports a QR payment`, {
         description: `#${order.id.slice(-6).toUpperCase()} · ₹${order.amounts?.total} — verify & confirm to settle`,
         duration: 10000,
       })
@@ -145,6 +149,9 @@ export default function CashierPortal() {
                 <LayoutGrid className="h-4 w-4" /> Console
               </button>
             )}
+            <button onClick={() => setPwOpen(true)} className="btn-ghost">
+              <KeyRound className="h-4 w-4" /> Password
+            </button>
             <button
               onClick={() => {
                 logout()
@@ -191,13 +198,15 @@ export default function CashierPortal() {
             qrUrl={qrUrl}
             onClose={() => setActive(null)}
             onPaid={(order) => {
-              toast.success(`Table ${order.tableNo} paid · ₹${order.amounts.total}`)
+              toast.success(`${locationLabel(order)} paid · ₹${order.amounts.total}`)
               setActive(null)
             }}
             onError={(msg) => toast.error(msg)}
           />
         )}
       </AnimatePresence>
+
+      <ChangePasswordModal open={pwOpen} onClose={() => setPwOpen(false)} />
     </div>
   )
 }
@@ -217,9 +226,9 @@ function TableBillCard({ group, onOpen }) {
       <div className="absolute -top-10 -right-10 h-28 w-28 rounded-full bg-saffron-200/40 blur-2xl pointer-events-none" />
       <div className="relative flex items-start justify-between">
         <div>
-          <div className="text-[11px] uppercase tracking-widest text-masala-600">Table</div>
+          <div className="text-[11px] uppercase tracking-widest text-masala-600">{group.serviceType === 'room' ? 'Room' : 'Table'}</div>
           <div className="font-display text-3xl text-masala-900 leading-none">
-            T{group.tableNo}
+            {locationLabel(group, { short: true })}
           </div>
         </div>
         <span className="chip">
@@ -298,7 +307,7 @@ function BillModal({ group, rzpReady, qrUrl, onClose, onPaid, onError }) {
       const resp = await openRazorpayCheckout({
         keyId: rzpOrder.keyId,
         rzpOrder,
-        description: `Table ${group.tableNo}`,
+        description: `${locationLabel(group)}`,
         onDismiss: () => onError('Customer cancelled the payment'),
       })
       if (!resp) return
@@ -333,7 +342,7 @@ function BillModal({ group, rzpReady, qrUrl, onClose, onPaid, onError }) {
         <div className="flex items-start justify-between">
           <div>
             <span className="eyebrow">
-              <Receipt className="h-3.5 w-3.5" /> Bill · Table {group.tableNo}
+              <Receipt className="h-3.5 w-3.5" /> Bill · {locationLabel(group)}
             </span>
             <h2 className="font-display text-2xl text-masala-900 mt-1">
               Settle the table
@@ -580,7 +589,7 @@ function printReceipt(o, tableNo, tip, qrUrl) {
       <h2>Masala Story</h2>
       <div class="sub">A taste of India</div>
     </div>
-    <div class="meta">Table: <b>T${tableNo}</b><br/>Order: #${o.id.slice(-6).toUpperCase()}<br/>${new Date().toLocaleString()}</div>
+    <div class="meta">${o.serviceType === 'room' ? 'Room' : 'Table'}: <b>${locationLabel({ serviceType: o.serviceType, tableNo })}</b><br/>Order: #${o.id.slice(-6).toUpperCase()}<br/>${new Date().toLocaleString()}</div>
     <table>${rows}</table>
     <div class="meta" style="margin-top:8px">Subtotal ₹${o.amounts.subtotal} · GST ₹${o.amounts.tax}${tip ? ` · Tip ₹${tip}` : ''}</div>
     <div class="total"><span>TOTAL</span><span>₹${total}</span></div>

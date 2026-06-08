@@ -5,15 +5,26 @@ export const useSessionStore = create(
   persist(
     (set, get) => ({
       tableNo: null,
+      serviceType: 'table', // 'table' | 'room' | 'takeaway' — channel this session is on
       sessionId: null,
       cart: [],
-      setTable: (tableNo) =>
+      // Generic location setter. `setTable` is kept for existing callers and
+      // simply forwards with serviceType='table'. Takeaway carries no number.
+      setLocation: (serviceType, tableNo) =>
         set({
-          tableNo,
+          serviceType: ['room', 'takeaway'].includes(serviceType) ? serviceType : 'table',
+          tableNo: serviceType === 'takeaway' ? null : tableNo,
           sessionId:
             get().sessionId || `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         }),
-      clearTable: () => set({ tableNo: null, sessionId: null, cart: [] }),
+      setTable: (tableNo) =>
+        set({
+          tableNo,
+          serviceType: 'table',
+          sessionId:
+            get().sessionId || `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        }),
+      clearTable: () => set({ tableNo: null, serviceType: 'table', sessionId: null, cart: [] }),
       addItem: (item) =>
         set((s) => {
           const key = `${item.id}|${item.instructions || ''}`

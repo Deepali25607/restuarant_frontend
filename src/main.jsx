@@ -24,7 +24,8 @@ createRoot(document.getElementById('root')).render(
       <I18nProvider>
         <App />
         <Toaster
-          position="top-center"
+          position="top-right"
+          className="masala-toaster"
           richColors
           closeButton
           toastOptions={{

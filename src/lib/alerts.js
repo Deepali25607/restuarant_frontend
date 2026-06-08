@@ -111,7 +111,7 @@ export function notifyNewOrder(order) {
   if (tooSoon()) return
   if (prefs.sound) playChime()
 
-  const title = `New order · Table ${order.tableNo}`
+  const title = `New order · ${order.serviceType === 'room' ? 'Room' : 'Table'} ${order.tableNo}`
   const body = `${order.items?.length || 0} item${(order.items?.length || 0) > 1 ? 's' : ''} · ₹${order.amounts?.total ?? ''}`
 
   // Only fire OS notification when the tab isn't visible — otherwise the

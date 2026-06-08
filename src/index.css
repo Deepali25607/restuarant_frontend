@@ -171,3 +171,19 @@
   .print-sheet { position: absolute; inset: 0; padding: 0; box-shadow: none; }
   @page { margin: 12mm; }
 }
+
+/* Toasts: anchored to the right edge and vertically centered, so they sit to
+   the right of the middle of the screen instead of covering its center. */
+[data-sonner-toaster][data-x-position="right"] {
+  top: 50% !important;
+  bottom: auto !important;
+  transform: translateY(-50%);
+}
+/* On phones Sonner spans the full width; keep those toasts at the top so they
+   don't obscure the middle of a small screen. */
+@media (max-width: 600px) {
+  [data-sonner-toaster][data-x-position="right"] {
+    top: var(--offset, 16px) !important;
+    transform: none;
+  }
+}

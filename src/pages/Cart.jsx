@@ -23,11 +23,12 @@ import { openRazorpayCheckout } from '../lib/razorpay'
 import DishImage from '../components/DishImage'
 import clsx from 'clsx'
 import { useOrgStore } from '../store/useOrgStore'
+import { locationLabel } from '../lib/location'
 
 export default function Cart() {
   const intl = useIntl()
   const navigate = useNavigate()
-  const { cart, tableNo, sessionId, incrementItem, decrementItem, removeItem, setInstructions, clearCart } = useSessionStore()
+  const { cart, tableNo, serviceType, sessionId, incrementItem, decrementItem, removeItem, setInstructions, clearCart } = useSessionStore()
   const count = useSessionStore(selectCartCount)
   const subtotal = useSessionStore(selectCartSubtotal)
   const branding = useOrgStore((s) => s.branding)
@@ -107,6 +108,7 @@ export default function Cart() {
   const placeOrderNow = async () => {
     return placeOrder({
       tableNo,
+      serviceType,
       sessionId,
       items: cart.map((c) => ({
         dishId: c.id,
@@ -143,7 +145,7 @@ export default function Cart() {
         const resp = await openRazorpayCheckout({
           keyId: rzpOrder.keyId,
           rzpOrder,
-          description: `Table ${tableNo} · ${cart.length} items`,
+          description: `${locationLabel({ serviceType, tableNo })} · ${cart.length} items`,
           onDismiss: () => toast.message(intl.formatMessage({ id: 'cart.cancelled' })),
         })
         if (resp) {
@@ -194,6 +196,7 @@ export default function Cart() {
           order={pendingOrder}
           qrUrl={paymentQrUrl}
           tableNo={tableNo}
+          serviceType={serviceType}
           onClose={() => finishOrder(pendingOrder)}
           onChoose={async (method) => {
             // Recording the choice is best-effort — the order is already placed
@@ -396,7 +399,7 @@ export default function Cart() {
             </p>
           )}
           <p className="text-[11px] mt-2 text-center" style={{ color: 'var(--text-muted)' }}>
-            <FormattedMessage id="cart.confirmSeat" values={{ table: tableNo }} />
+            <FormattedMessage id="cart.confirmSeat" values={{ location: locationLabel({ serviceType, tableNo }) }} />
           </p>
         </aside>
       </div>
@@ -431,7 +434,7 @@ function PayOption({ active, onClick, icon, label }) {
   )
 }
 
-function PaymentChoiceModal({ order, qrUrl, tableNo, onChoose, onClose }) {
+function PaymentChoiceModal({ order, qrUrl, tableNo, serviceType, onChoose, onClose }) {
   const [busy, setBusy] = useState('')
   const choose = async (method) => {
     if (busy) return
@@ -465,7 +468,7 @@ function PaymentChoiceModal({ order, qrUrl, tableNo, onChoose, onClose }) {
               <FormattedMessage
                 id="cart.payNow.subtitle"
                 values={{
-                  table: tableNo,
+                  location: locationLabel({ serviceType, tableNo }),
                   id: `#${order.id.slice(-6).toUpperCase()}`,
                   total: order.amounts.total,
                 }}

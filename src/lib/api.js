@@ -83,6 +83,17 @@ export const fetchTable = (tableNo, sessionId) =>
     .then((r) => r.data)
 export const fetchTableTab = (tableNo) =>
   api.get(`/tables/${tableNo}/tab`).then((r) => r.data)
+export const fetchRoom = (roomNo, sessionId) =>
+  api
+    .get(`/rooms/${roomNo}`, { params: sessionId ? { sessionId } : {} })
+    .then((r) => r.data)
+export const fetchRoomTab = (roomNo) =>
+  api.get(`/rooms/${roomNo}/tab`).then((r) => r.data)
+// Generic helpers that route to table or room by serviceType.
+export const fetchLocation = (serviceType, no, sessionId) =>
+  serviceType === 'room' ? fetchRoom(no, sessionId) : fetchTable(no, sessionId)
+export const fetchLocationTab = (serviceType, no) =>
+  serviceType === 'room' ? fetchRoomTab(no) : fetchTableTab(no)
 export const placeOrder = (payload) =>
   api.post('/orders', payload).then((r) => r.data)
 export const setOrderPaymentMethod = (orderId, method) =>
@@ -95,6 +106,8 @@ export const submitRating = (orderId, payload) =>
 export const loginRequest = (email, password) =>
   api.post('/auth/login', { email, password }).then((r) => r.data)
 export const me = () => api.get('/auth/me').then((r) => r.data)
+export const changePassword = (payload) =>
+  api.post('/auth/change-password', payload).then((r) => r.data)
 export const adminOverview = () => api.get('/admin/overview').then((r) => r.data)
 
 export const fetchAdminOrders = (status) =>
@@ -127,6 +140,12 @@ export const updateTable = (number, patch) =>
   api.patch(`/admin/tables/${number}`, patch).then((r) => r.data)
 export const deleteTable = (number) =>
   api.delete(`/admin/tables/${number}`).then((r) => r.data)
+
+export const fetchRooms = () => api.get('/admin/rooms').then((r) => r.data)
+export const createRoom = (payload) =>
+  api.post('/admin/rooms', payload).then((r) => r.data)
+export const deleteRoom = (number) =>
+  api.delete(`/admin/rooms/${number}`).then((r) => r.data)
 
 export const fetchStaff = () => api.get('/admin/staff').then((r) => r.data)
 export const createStaff = (payload) =>

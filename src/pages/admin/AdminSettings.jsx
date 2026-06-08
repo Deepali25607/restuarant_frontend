@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { QrCode, Upload, Loader2, Save, Trash2, Image as ImageIcon, Wallet } from 'lucide-react'
+import { QrCode, Upload, Loader2, Save, Trash2, Image as ImageIcon, Wallet, Table2, BedDouble, ShoppingBag } from 'lucide-react'
 import clsx from 'clsx'
 import { toast } from 'sonner'
 import { fetchOrgSettings, updateOrgSettings, uploadImage } from '../../lib/api'
@@ -8,6 +8,9 @@ import { fetchOrgSettings, updateOrgSettings, uploadImage } from '../../lib/api'
 export default function AdminSettings() {
   const [settings, setSettings] = useState(null)
   const [paymentQrUrl, setPaymentQrUrl] = useState('')
+  const [tableEnabled, setTableEnabled] = useState(true)
+  const [roomEnabled, setRoomEnabled] = useState(false)
+  const [takeawayEnabled, setTakeawayEnabled] = useState(false)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -16,20 +19,36 @@ export default function AdminSettings() {
       .then((s) => {
         setSettings(s)
         setPaymentQrUrl(s.paymentQrUrl || '')
+        setTableEnabled(s.tableOrderingEnabled !== false)
+        setRoomEnabled(Boolean(s.roomOrderingEnabled))
+        setTakeawayEnabled(Boolean(s.takeawayOrderingEnabled))
       })
       .catch((e) => setError(e?.response?.data?.message || e.message))
   }, [])
 
-  const dirty = settings && paymentQrUrl !== (settings.paymentQrUrl || '')
+  const dirty =
+    settings &&
+    (paymentQrUrl !== (settings.paymentQrUrl || '') ||
+      tableEnabled !== (settings.tableOrderingEnabled !== false) ||
+      roomEnabled !== Boolean(settings.roomOrderingEnabled) ||
+      takeawayEnabled !== Boolean(settings.takeawayOrderingEnabled))
 
   const save = async () => {
     setSaving(true)
     setError('')
     try {
-      const updated = await updateOrgSettings({ paymentQrUrl })
+      const updated = await updateOrgSettings({
+        paymentQrUrl,
+        tableOrderingEnabled: tableEnabled,
+        roomOrderingEnabled: roomEnabled,
+        takeawayOrderingEnabled: takeawayEnabled,
+      })
       setSettings(updated)
       setPaymentQrUrl(updated.paymentQrUrl || '')
-      toast.success('Payment settings saved')
+      setTableEnabled(updated.tableOrderingEnabled !== false)
+      setRoomEnabled(Boolean(updated.roomOrderingEnabled))
+      setTakeawayEnabled(Boolean(updated.takeawayOrderingEnabled))
+      toast.success('Settings saved')
     } catch (e) {
       const msg = e?.response?.data?.message || e.message
       setError(msg)
@@ -96,6 +115,38 @@ export default function AdminSettings() {
             </div>
           </div>
 
+          <div className="mt-8 pt-6 border-t border-saffron-200/70 dark:border-masala-700">
+            <div className="flex items-center gap-2 text-sm font-semibold text-masala-800 dark:text-saffron-100">
+              Ordering channels
+            </div>
+            <p className="mt-1 text-xs text-masala-600 dark:text-saffron-200/70">
+              Choose how guests can order. Turn a channel off to hide it from customers.
+            </p>
+            <div className="mt-4 space-y-3">
+              <ToggleRow
+                icon={Table2}
+                label="Dine-in (tables)"
+                desc="Guests scan a table QR to order at the table."
+                checked={tableEnabled}
+                onChange={setTableEnabled}
+              />
+              <ToggleRow
+                icon={BedDouble}
+                label="Room service (rooms)"
+                desc="Guests scan a room QR to order to their room."
+                checked={roomEnabled}
+                onChange={setRoomEnabled}
+              />
+              <ToggleRow
+                icon={ShoppingBag}
+                label="Takeaway"
+                desc="Guests order for pickup — no table or room needed."
+                checked={takeawayEnabled}
+                onChange={setTakeawayEnabled}
+              />
+            </div>
+          </div>
+
           <div className="mt-6 flex items-center gap-3">
             <button
               onClick={save}
@@ -112,6 +163,37 @@ export default function AdminSettings() {
         </motion.div>
       )}
     </div>
+  )
+}
+
+function ToggleRow({ icon: Icon, label, desc, checked, onChange }) {
+  return (
+    <label className="flex items-center gap-3 rounded-2xl border border-saffron-200 dark:border-masala-700 bg-cream/60 dark:bg-masala-800/40 px-4 py-3 cursor-pointer">
+      <div className="h-9 w-9 rounded-full bg-curry-gradient flex items-center justify-center shadow-warm shrink-0">
+        <Icon className="h-4 w-4 text-white" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-semibold text-masala-900 dark:text-saffron-100">{label}</div>
+        <div className="text-xs text-masala-600 dark:text-saffron-200/70">{desc}</div>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className={clsx(
+          'relative h-6 w-11 rounded-full transition shrink-0',
+          checked ? 'bg-emerald-500' : 'bg-masala-300 dark:bg-masala-600',
+        )}
+      >
+        <span
+          className={clsx(
+            'absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition',
+            checked ? 'left-[22px]' : 'left-0.5',
+          )}
+        />
+      </button>
+    </label>
   )
 }
 

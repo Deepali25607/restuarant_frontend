@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Bell, QrCode, ClipboardList, AlertTriangle } from 'lucide-react'
 import clsx from 'clsx'
 import { getSocket } from '../../lib/socket'
+import { locationLabel } from '../../lib/location'
 
 const MAX = 30
 
@@ -37,7 +38,7 @@ export default function NotificationBell({ perms = [] }) {
     const onNew = (o) =>
       add({
         type: 'order',
-        title: `New order · T${o.tableNo}`,
+        title: `New order · ${locationLabel(o, { short: true })}`,
         desc: `${(o.items || []).reduce((s, it) => s + it.qty, 0)} items · ₹${o.amounts?.total ?? ''}`,
         link: '/admin/orders',
       })
@@ -45,7 +46,7 @@ export default function NotificationBell({ perms = [] }) {
       if (!canBill) return
       add({
         type: 'qr',
-        title: `QR payment · T${o.tableNo}`,
+        title: `QR payment · ${locationLabel(o, { short: true })}`,
         desc: `₹${o.amounts?.total ?? ''} — verify & confirm to settle`,
         link: '/cashier',
       })

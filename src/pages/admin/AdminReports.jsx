@@ -11,6 +11,8 @@ import {
   Flame,
   TrendingDown,
   Wallet,
+  Table2,
+  BedDouble,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { fetchReportsSummary } from '../../lib/api'
@@ -76,6 +78,14 @@ export default function AdminReports() {
       }),
       ['Total settled', data.settlements?.count || 0, data.settlements?.total || 0],
       [],
+      ['Service', 'Orders', 'Revenue'],
+      ['Dine-in (tables)', data.serviceMix?.table?.orders || 0, data.serviceMix?.table?.revenue || 0],
+      ['Room service', data.serviceMix?.room?.orders || 0, data.serviceMix?.room?.revenue || 0],
+      ['Takeaway', data.serviceMix?.takeaway?.orders || 0, data.serviceMix?.takeaway?.revenue || 0],
+      [],
+      ['Room', 'Orders', 'Revenue'],
+      ...(data.rooms || []).map((r) => [`Room ${r.number}`, r.orders, r.revenue]),
+      [],
       ['Dish', 'Quantity', 'Revenue'],
       ...data.popular.map((p) => [p.name, p.qty, p.revenue]),
     ]
@@ -122,6 +132,22 @@ export default function AdminReports() {
   const settledRows = SETTLE_METHODS.map((m) => ({ ...m, ...(settlements.byMethod[m.key] || { count: 0, amount: 0 }) }))
     .filter((r) => r.count > 0)
     .sort((a, b) => b.amount - a.amount)
+
+  const emptyMix = { orders: 0, revenue: 0 }
+  const serviceMix = data.serviceMix || {}
+  const mix = {
+    table: serviceMix.table || emptyMix,
+    room: serviceMix.room || emptyMix,
+    takeaway: serviceMix.takeaway || emptyMix,
+  }
+  const serviceTotal = mix.table.revenue + mix.room.revenue + mix.takeaway.revenue
+  const serviceRows = [
+    { key: 'table', label: 'Dine-in (tables)', icon: Table2, color: 'bg-saffron-500', ...mix.table },
+    { key: 'room', label: 'Room service', icon: BedDouble, color: 'bg-indigo-500', ...mix.room },
+    { key: 'takeaway', label: 'Takeaway', icon: ShoppingBag, color: 'bg-emerald-500', ...mix.takeaway },
+  ]
+  const rooms = data.rooms || []
+  const roomRevenueMax = Math.max(1, ...rooms.map((r) => r.revenue))
 
   return (
     <div className="space-y-6">
@@ -245,6 +271,75 @@ export default function AdminReports() {
                     <div className="mt-1 h-2 rounded-full bg-saffron-100 overflow-hidden">
                       <div className={clsx('h-full', r.color)} style={{ width: `${pct}%` }} />
                     </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      <div className="grid lg:grid-cols-[360px_1fr] gap-6">
+        <div className="card p-6">
+          <div className="flex items-center gap-2">
+            <BedDouble className="h-4 w-4 text-indigo-500" />
+            <h2 className="font-display text-xl text-masala-900">Service mix</h2>
+          </div>
+          <p className="text-xs text-masala-600 mt-1">Dine-in vs room service, by revenue.</p>
+          {serviceTotal === 0 ? (
+            <div className="mt-4 text-sm text-masala-600">No completed orders in this window yet.</div>
+          ) : (
+            <ul className="mt-4 space-y-3">
+              {serviceRows.map((r) => {
+                const pct = serviceTotal ? Math.round((r.revenue / serviceTotal) * 100) : 0
+                return (
+                  <li key={r.key}>
+                    <div className="flex justify-between text-sm">
+                      <span className="font-semibold inline-flex items-center gap-1.5">
+                        <r.icon className="h-3.5 w-3.5 text-masala-600" />
+                        {r.label}
+                      </span>
+                      <span className="text-masala-700">
+                        ₹{r.revenue.toLocaleString()} · {r.orders} · {pct}%
+                      </span>
+                    </div>
+                    <div className="mt-1 h-2 rounded-full bg-saffron-100 overflow-hidden">
+                      <div className={clsx('h-full', r.color)} style={{ width: `${pct}%` }} />
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+
+        <div className="card p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <BedDouble className="h-4 w-4 text-indigo-500" />
+              <h2 className="font-display text-xl text-masala-900">Room service revenue</h2>
+            </div>
+            <span className="text-xs text-masala-600">{rooms.length} room{rooms.length === 1 ? '' : 's'}</span>
+          </div>
+          {rooms.length === 0 ? (
+            <div className="mt-4 text-sm text-masala-600">
+              No room-service orders in this window yet.
+            </div>
+          ) : (
+            <ul className="mt-4 space-y-2.5">
+              {rooms.map((r) => {
+                const pct = Math.round((r.revenue / roomRevenueMax) * 100)
+                return (
+                  <li key={r.number} className="flex items-center gap-3">
+                    <span className="w-14 shrink-0 text-sm font-semibold text-masala-900">
+                      R{r.number}
+                    </span>
+                    <div className="flex-1 h-2.5 rounded-full bg-saffron-100 overflow-hidden">
+                      <div className="h-full bg-indigo-500" style={{ width: `${Math.max(3, pct)}%` }} />
+                    </div>
+                    <span className="w-32 shrink-0 text-right text-xs text-masala-700">
+                      ₹{r.revenue.toLocaleString()} · {r.orders} ord
+                    </span>
                   </li>
                 )
               })}

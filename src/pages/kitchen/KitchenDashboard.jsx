@@ -10,6 +10,7 @@ import {
   BellOff,
   CheckCircle2,
   LogOut,
+  KeyRound,
   AlertTriangle,
   Soup,
   HandPlatter,
@@ -22,6 +23,8 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { fetchAdminOrders, setOrderStatus } from '../../lib/api'
 import { getSocket } from '../../lib/socket'
 import ThemeToggle from '../../components/ThemeToggle'
+import ChangePasswordModal from '../../components/ChangePasswordModal'
+import { locationLabel } from '../../lib/location'
 import {
   getPrefs,
   setPrefs,
@@ -48,6 +51,7 @@ export default function KitchenDashboard() {
   const [orders, setOrders] = useState([])
   const [tab, setTab] = useState('pending')
   const [error, setError] = useState('')
+  const [pwOpen, setPwOpen] = useState(false)
   const [prefs, setLocalPrefs] = useState(() => getPrefs())
   const [permission, setPermission] = useState(() => notificationPermission())
 
@@ -71,7 +75,7 @@ export default function KitchenDashboard() {
     socket.emit('join:kitchen')
     const onNew = (order) => {
       setOrders((prev) => (prev.find((o) => o.id === order.id) ? prev : [order, ...prev]))
-      toast.success(`New order · Table ${order.tableNo}`, {
+      toast.success(`New order · ${locationLabel(order)}`, {
         description: `${order.items.length} item${order.items.length > 1 ? 's' : ''} · ₹${order.amounts?.total}`,
       })
       notifyNewOrder(order)
@@ -183,6 +187,9 @@ export default function KitchenDashboard() {
               onTogglePush={togglePush}
             />
             <ThemeToggle />
+            <button onClick={() => setPwOpen(true)} className="btn-ghost">
+              <KeyRound className="h-4 w-4" /> Password
+            </button>
             <button
               onClick={() => {
                 logout()
@@ -250,6 +257,8 @@ export default function KitchenDashboard() {
           </div>
         )}
       </main>
+
+      <ChangePasswordModal open={pwOpen} onClose={() => setPwOpen(false)} />
     </div>
   )
 }
@@ -346,10 +355,10 @@ function KOTCard({ order, onAdvance }) {
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="text-[11px] uppercase tracking-widest text-masala-600">
-            Table
+            {order.serviceType === 'room' ? 'Room' : 'Table'}
           </div>
           <div className="font-display text-3xl text-masala-900 leading-none">
-            T{order.tableNo}
+            {locationLabel(order, { short: true })}
           </div>
         </div>
         <div className="text-right">

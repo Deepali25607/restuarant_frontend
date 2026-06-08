@@ -1,6 +1,6 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useNavigate, Navigate, useLocation } from 'react-router-dom'
-import { LayoutDashboard, UtensilsCrossed, Table2, ClipboardList, Users, LogOut, Flame, BarChart3, Wallet, ScrollText, Sparkles, Settings, Coins } from 'lucide-react'
+import { LayoutDashboard, UtensilsCrossed, Table2, BedDouble, ClipboardList, Users, LogOut, Flame, BarChart3, Wallet, ScrollText, Sparkles, Settings, Coins, KeyRound } from 'lucide-react'
 import clsx from 'clsx'
 import { toast } from 'sonner'
 import { useAuthStore } from '../../store/useAuthStore'
@@ -9,12 +9,14 @@ import ThemeToggle from '../ThemeToggle'
 import { getSocket } from '../../lib/socket'
 import SubscriptionBanner from './SubscriptionBanner'
 import NotificationBell from './NotificationBell'
+import ChangePasswordModal from '../ChangePasswordModal'
 
 const navItems = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true, perm: 'dashboard.view' },
   { to: '/admin/orders', label: 'Live orders', icon: ClipboardList, perm: 'orders.view' },
   { to: '/admin/menu', label: 'Menu', icon: UtensilsCrossed, perm: 'menu.manage' },
   { to: '/admin/tables', label: 'Tables', icon: Table2, perm: 'tables.view' },
+  { to: '/admin/rooms', label: 'Rooms', icon: BedDouble, perm: 'rooms.view' },
   { to: '/cashier', label: 'Cashier desk', icon: Coins, perm: 'billing.collect' },
   { to: '/admin/staff', label: 'Staff', icon: Users, perm: 'staff.view' },
   { to: '/admin/expenses', label: 'Expenses', icon: Wallet, perm: 'expenses.view' },
@@ -29,6 +31,7 @@ export default function AdminLayout() {
   const location = useLocation()
   const { user, token, logout } = useAuthStore()
   const platformName = usePlatformStore((s) => s.platform?.name) || 'Masala Story'
+  const [pwOpen, setPwOpen] = useState(false)
   const visibleNav = navItems.filter(
     (item) => !item.perm || (user?.permissions || []).includes(item.perm),
   )
@@ -134,6 +137,12 @@ export default function AdminLayout() {
               <LogOut className="h-4 w-4" />
             </button>
           </div>
+          <button
+            onClick={() => setPwOpen(true)}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-2xl text-sm font-medium text-masala-700 hover:bg-saffron-100 hover:text-masala-900"
+          >
+            <KeyRound className="h-4 w-4" /> Change password
+          </button>
         </div>
       </aside>
 
@@ -194,6 +203,8 @@ export default function AdminLayout() {
           <Outlet />
         </main>
       </div>
+
+      <ChangePasswordModal open={pwOpen} onClose={() => setPwOpen(false)} />
     </div>
   )
 }

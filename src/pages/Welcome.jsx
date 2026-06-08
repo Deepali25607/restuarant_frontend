@@ -2,10 +2,12 @@ import { useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { FormattedMessage, useIntl } from 'react-intl'
-import { QrCode, ArrowRight, Sparkles, Flame, Utensils, AlertTriangle, Loader2 } from 'lucide-react'
+import clsx from 'clsx'
+import { QrCode, ArrowRight, Sparkles, Flame, Utensils, AlertTriangle, Loader2, Table2, BedDouble, ShoppingBag } from 'lucide-react'
 import { useSessionStore } from '../store/useSessionStore'
 import { useOrgStore } from '../store/useOrgStore'
-import { fetchTable } from '../lib/api'
+import { fetchLocation } from '../lib/api'
+import { locationNoun } from '../lib/location'
 import LanguagePicker from '../components/LanguagePicker'
 import ThemeToggle from '../components/ThemeToggle'
 
@@ -28,14 +30,40 @@ export default function Welcome() {
   const intl = useIntl()
   const [params] = useSearchParams()
   const navigate = useNavigate()
-  const setTable = useSessionStore((s) => s.setTable)
+  const setLocation = useSessionStore((s) => s.setLocation)
   const tableNo = useSessionStore((s) => s.tableNo)
   const sessionId = useSessionStore((s) => s.sessionId)
   const { orgKey, branding } = useOrgStore()
-  const [tableInput, setTableInput] = useState(params.get('table') || '')
+  // Which ordering channels this org offers. Default: tables on, rooms &
+  // takeaway off (covers orgs whose branding predates the flags).
+  const tableEnabled = branding ? branding.tableOrderingEnabled !== false : true
+  const roomEnabled = Boolean(branding?.roomOrderingEnabled)
+  const takeawayEnabled = Boolean(branding?.takeawayOrderingEnabled)
+  const channels = [
+    tableEnabled && { key: 'table', label: 'Dine-in', icon: Table2 },
+    roomEnabled && { key: 'room', label: 'Room service', icon: BedDouble },
+    takeawayEnabled && { key: 'takeaway', label: 'Takeaway', icon: ShoppingBag },
+  ].filter(Boolean)
+  const [entryType, setEntryType] = useState(
+    params.get('room') ? 'room' : 'table',
+  )
+  const [tableInput, setTableInput] = useState(params.get('table') || params.get('room') || '')
   const [checking, setChecking] = useState(false)
   const [entryError, setEntryError] = useState('')
   const tableInputRef = useRef(null)
+  // Resolve which channel is active: the picked one if it's offered, else the
+  // first offered channel (covers single-channel orgs and stale picks).
+  const effectiveType = channels.some((c) => c.key === entryType)
+    ? entryType
+    : channels[0]?.key || 'table'
+  const isTakeaway = effectiveType === 'takeaway'
+  const noun = locationNoun(effectiveType)
+
+  // Takeaway needs no location — start the session and head to the menu.
+  const startTakeaway = () => {
+    setLocation('takeaway')
+    navigate('/menu')
+  }
 
   // Brand badge click: returning customers (table already set in this
   // session) jump straight to the menu; first-time visitors get nudged
@@ -63,21 +91,18 @@ export default function Welcome() {
     setEntryError('')
     setChecking(true)
     try {
-      const table = await fetchTable(t, sessionId || undefined)
+      const table = await fetchLocation(effectiveType, t, sessionId || undefined)
       if (table.occupiedBy === 'other') {
         setEntryError(
-          intl.formatMessage(
-            { id: 'welcome.tableOccupied' },
-            { table: t, count: table.activeOrderCount || 1 },
-          ),
+          `${noun} ${t} is currently occupied by another customer. Please try a different one.`,
         )
         return
       }
-      setTable(t)
+      setLocation(effectiveType, t)
       navigate('/menu')
     } catch (err) {
       if (err?.response?.status === 404) {
-        setEntryError(intl.formatMessage({ id: 'welcome.tableNotFound' }, { table: t }))
+        setEntryError(`${noun} ${t} doesn't exist at this restaurant. Please check with the staff.`)
       } else if (err?.response?.status === 400) {
         // Org not selected yet — ask user to pick a restaurant first.
         setEntryError(intl.formatMessage({ id: 'welcome.pickRestaurant' }))
@@ -180,37 +205,72 @@ export default function Welcome() {
 
             {hasOrg ? (
               <>
-                <form onSubmit={enter} className="mt-8 card p-2 flex items-center gap-2 max-w-md">
-                  <div className="pl-4 pr-2 text-saffron-500">
-                    <QrCode className="h-5 w-5" />
+                {channels.length > 1 && (
+                  <div className="mt-8 inline-flex rounded-full border border-saffron-200 dark:border-masala-700 bg-white dark:bg-masala-800 p-1">
+                    {channels.map((opt) => (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        onClick={() => {
+                          setEntryType(opt.key)
+                          setEntryError('')
+                        }}
+                        className={clsx(
+                          'inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold transition',
+                          effectiveType === opt.key
+                            ? 'bg-curry-gradient text-white shadow-warm'
+                            : 'text-masala-700 dark:text-saffron-200',
+                        )}
+                      >
+                        <opt.icon className="h-4 w-4" />
+                        {opt.label}
+                      </button>
+                    ))}
                   </div>
-                  <input
-                    ref={tableInputRef}
-                    value={tableInput}
-                    onChange={(e) => {
-                      setTableInput(e.target.value)
-                      if (entryError) setEntryError('')
-                    }}
-                    placeholder={intl.formatMessage({ id: 'welcome.tablePlaceholder' })}
-                    inputMode="numeric"
-                    className="flex-1 bg-transparent outline-none py-3 placeholder:opacity-60"
-                    style={{ color: 'var(--text)' }}
-                  />
+                )}
+                {isTakeaway ? (
                   <button
-                    type="submit"
-                    className="btn-primary !py-2.5 !px-5"
-                    disabled={!tableInput.trim() || checking}
+                    type="button"
+                    onClick={startTakeaway}
+                    className={clsx('btn-primary !py-3 !px-6', channels.length > 1 ? 'mt-3' : 'mt-8')}
                   >
-                    {checking ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <>
-                        <FormattedMessage id="welcome.begin" />
-                        <ArrowRight className="h-4 w-4" />
-                      </>
-                    )}
+                    <ShoppingBag className="h-4 w-4" />
+                    <FormattedMessage id="welcome.startTakeaway" defaultMessage="Start takeaway order" />
+                    <ArrowRight className="h-4 w-4" />
                   </button>
-                </form>
+                ) : (
+                  <form onSubmit={enter} className={clsx('card p-2 flex items-center gap-2 max-w-md', channels.length > 1 ? 'mt-3' : 'mt-8')}>
+                    <div className="pl-4 pr-2 text-saffron-500">
+                      {effectiveType === 'room' ? <BedDouble className="h-5 w-5" /> : <QrCode className="h-5 w-5" />}
+                    </div>
+                    <input
+                      ref={tableInputRef}
+                      value={tableInput}
+                      onChange={(e) => {
+                        setTableInput(e.target.value)
+                        if (entryError) setEntryError('')
+                      }}
+                      placeholder={`Enter your ${noun.toLowerCase()} number`}
+                      inputMode="numeric"
+                      className="flex-1 bg-transparent outline-none py-3 placeholder:opacity-60"
+                      style={{ color: 'var(--text)' }}
+                    />
+                    <button
+                      type="submit"
+                      className="btn-primary !py-2.5 !px-5"
+                      disabled={!tableInput.trim() || checking}
+                    >
+                      {checking ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <FormattedMessage id="welcome.begin" />
+                          <ArrowRight className="h-4 w-4" />
+                        </>
+                      )}
+                    </button>
+                  </form>
+                )}
 
                 {entryError && (
                   <div className="mt-3 max-w-md flex items-start gap-2 rounded-2xl border border-chilli-200 dark:border-chilli-800 bg-chilli-50 dark:bg-chilli-900/20 text-chilli-700 dark:text-chilli-300 px-3 py-2.5 text-sm">

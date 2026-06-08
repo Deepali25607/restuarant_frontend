@@ -16,6 +16,7 @@ const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard.jsx'))
 const AdminOrders = lazy(() => import('./pages/admin/AdminOrders.jsx'))
 const AdminMenu = lazy(() => import('./pages/admin/AdminMenu.jsx'))
 const AdminTables = lazy(() => import('./pages/admin/AdminTables.jsx'))
+const AdminRooms = lazy(() => import('./pages/admin/AdminRooms.jsx'))
 const AdminStaff = lazy(() => import('./pages/admin/AdminStaff.jsx'))
 const AdminReports = lazy(() => import('./pages/admin/AdminReports.jsx'))
 const AdminExpenses = lazy(() => import('./pages/admin/AdminExpenses.jsx'))
@@ -47,9 +48,11 @@ export default function App() {
         <Route path="/rate/:orderId" element={<Rating />} />
       </Route>
 
-      {/* Org-aware QR landing — sets the org + table then jumps into the menu. */}
+      {/* Org-aware QR landing — sets the org + table/room then jumps into the menu. */}
       <Route path="/order/:orgSlug" element={<OrderEntry />} />
-      <Route path="/order/:orgSlug/:tableNo" element={<OrderEntry />} />
+      <Route path="/order/:orgSlug/takeaway" element={<OrderEntry serviceType="takeaway" />} />
+      <Route path="/order/:orgSlug/room/:roomNo" element={<OrderEntry serviceType="room" />} />
+      <Route path="/order/:orgSlug/:tableNo" element={<OrderEntry serviceType="table" />} />
 
       <Route
         path="/admin/login"
@@ -71,6 +74,7 @@ export default function App() {
         <Route path="orders" element={<Suspense fallback={null}><AdminOrders /></Suspense>} />
         <Route path="menu" element={<Suspense fallback={null}><AdminMenu /></Suspense>} />
         <Route path="tables" element={<Suspense fallback={null}><AdminTables /></Suspense>} />
+        <Route path="rooms" element={<Suspense fallback={null}><AdminRooms /></Suspense>} />
         <Route path="staff" element={<Suspense fallback={null}><AdminStaff /></Suspense>} />
         <Route path="expenses" element={<Suspense fallback={null}><AdminExpenses /></Suspense>} />
         <Route path="reports" element={<Suspense fallback={null}><AdminReports /></Suspense>} />

@@ -11,6 +11,7 @@ import ThemeToggle from './ThemeToggle'
 export default function Layout() {
   const location = useLocation()
   const tableNo = useSessionStore((s) => s.tableNo)
+  const serviceType = useSessionStore((s) => s.serviceType)
   const cartCount = useSessionStore(selectCartCount)
   const branding = useOrgStore((s) => s.branding)
   const platformName = usePlatformStore((s) => s.platform?.name) || 'Masala Story'
@@ -49,10 +50,14 @@ export default function Layout() {
             </Link>
 
             <div className="flex items-center gap-2">
-              {tableNo && (
+              {(tableNo || serviceType === 'takeaway') && (
                 <span className="hidden sm:inline-flex items-center gap-1 chip">
                   <MapPin className="h-3.5 w-3.5" />{' '}
-                  <FormattedMessage id="common.table" /> {tableNo}
+                  {serviceType === 'takeaway' ? (
+                    <FormattedMessage id="common.takeaway" />
+                  ) : (
+                    <><FormattedMessage id={serviceType === 'room' ? 'common.room' : 'common.table'} /> {tableNo}</>
+                  )}
                 </span>
               )}
               <LanguagePicker variant="pill" />

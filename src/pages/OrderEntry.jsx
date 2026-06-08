@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AlertCircle, Flame, AlertTriangle, ArrowRight, Loader2 } from 'lucide-react'
-import { fetchOrgBranding, fetchTable } from '../lib/api'
+import { fetchOrgBranding, fetchLocation } from '../lib/api'
 import { useOrgStore } from '../store/useOrgStore'
 import { useSessionStore } from '../store/useSessionStore'
+import { locationNoun } from '../lib/location'
 
 // `/order/:orgSlug/:tableNo` — the canonical QR-scan landing.
 // Three outcomes:
@@ -11,11 +12,14 @@ import { useSessionStore } from '../store/useSessionStore'
 //  2. Table held by *another* customer's session → "table is busy" screen
 //     with a retry input so they can grab a different table
 //  3. Otherwise → set org + table on the session and forward to /menu
-export default function OrderEntry() {
-  const { orgSlug, tableNo } = useParams()
+export default function OrderEntry({ serviceType = 'table' }) {
+  const params = useParams()
+  const orgSlug = params.orgSlug
+  const tableNo = serviceType === 'room' ? params.roomNo : params.tableNo
+  const noun = locationNoun(serviceType)
   const navigate = useNavigate()
   const setOrg = useOrgStore((s) => s.setOrg)
-  const setTable = useSessionStore((s) => s.setTable)
+  const setLocation = useSessionStore((s) => s.setLocation)
   const existingSessionId = useSessionStore((s) => s.sessionId)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(null)
@@ -31,11 +35,17 @@ export default function OrderEntry() {
         if (!alive) return
         branding = b
         setOrg(b.slug, b)
+        // Takeaway has no location to validate — start the session and go.
+        if (serviceType === 'takeaway') {
+          setLocation('takeaway')
+          navigate('/menu', { replace: true })
+          return null
+        }
         if (!tableNo) {
           navigate('/', { replace: true })
           return null
         }
-        return fetchTable(tableNo, existingSessionId || undefined)
+        return fetchLocation(serviceType, tableNo, existingSessionId || undefined)
       })
       .then((table) => {
         if (!alive || !table) return
@@ -47,21 +57,21 @@ export default function OrderEntry() {
           })
           return
         }
-        setTable(tableNo)
+        setLocation(serviceType, tableNo)
         navigate('/menu', { replace: true })
       })
       .catch((e) => {
         if (!alive) return
         setError(
           e?.response?.status === 404
-            ? `We couldn't find ${tableNo ? `Table ${tableNo} at` : 'restaurant'} "${orgSlug}". Check the QR or ask the staff.`
+            ? `We couldn't find ${tableNo ? `${noun} ${tableNo} at` : 'restaurant'} "${orgSlug}". Check the QR or ask the staff.`
             : e?.response?.data?.message || e.message,
         )
       })
     return () => {
       alive = false
     }
-  }, [orgSlug, tableNo, navigate, setOrg, setTable, existingSessionId])
+  }, [orgSlug, tableNo, serviceType, noun, navigate, setOrg, setLocation, existingSessionId])
 
   const tryAnotherTable = async (e) => {
     e?.preventDefault()
@@ -70,7 +80,7 @@ export default function OrderEntry() {
     setRetrying(true)
     setError('')
     try {
-      const table = await fetchTable(next, existingSessionId || undefined)
+      const table = await fetchLocation(serviceType, next, existingSessionId || undefined)
       if (table.occupiedBy === 'other') {
         setBusy({
           tableNo: next,
@@ -79,12 +89,12 @@ export default function OrderEntry() {
         })
         setRetryInput('')
       } else {
-        setTable(next)
+        setLocation(serviceType, next)
         navigate('/menu', { replace: true })
       }
     } catch (err) {
       if (err?.response?.status === 404) {
-        setError(`Table ${next} doesn't exist here. Please ask the staff.`)
+        setError(`${noun} ${next} doesn't exist here. Please ask the staff.`)
       } else {
         setError(err?.response?.data?.message || err.message)
       }
@@ -122,12 +132,12 @@ export default function OrderEntry() {
               <AlertTriangle className="h-6 w-6 text-amber-600 dark:text-amber-300" />
             </div>
             <h1 className="font-display text-2xl mb-1" style={{ color: 'var(--text)' }}>
-              Table {busy.tableNo} is already taken
+              {noun} {busy.tableNo} is already taken
             </h1>
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-              Another customer has an open tab at this table
+              Another customer has an open tab at this {noun.toLowerCase()}
               {busy.activeOrderCount > 1 ? ` (${busy.activeOrderCount} active orders)` : ''}.
-              Please pick a different table.
+              Please pick a different {noun.toLowerCase()}.
             </p>
 
             <form
@@ -135,7 +145,7 @@ export default function OrderEntry() {
               className="card p-2 flex items-center gap-2 mt-5"
             >
               <span className="pl-3 text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
-                Table
+                {noun}
               </span>
               <input
                 value={retryInput}
@@ -166,10 +176,10 @@ export default function OrderEntry() {
         ) : (
           <div>
             <div className="font-display text-2xl" style={{ color: 'var(--text)' }}>
-              Preparing your table…
+              Preparing your {noun.toLowerCase()}…
             </div>
             <div className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
-              Loading the menu for table {tableNo}.
+              Loading the menu for {noun.toLowerCase()} {tableNo}.
             </div>
           </div>
         )}

@@ -4,7 +4,14 @@ import { Printer, X } from 'lucide-react'
 // Full-screen printable grid of QR codes for every table. Renders inside the
 // app (no popup) and relies on the `.print-sheet` CSS rules in index.css to
 // hide everything else when the user prints.
-export default function BulkQrSheet({ tables, orgSlug, orgName, customerOrigin, onClose }) {
+export default function BulkQrSheet({ tables, orgSlug, orgName, customerOrigin, onClose, serviceType = 'table' }) {
+  const isRoom = serviceType === 'room'
+  const noun = isRoom ? 'room' : 'table'
+  const Noun = isRoom ? 'Room' : 'Table'
+  const urlFor = (number) =>
+    isRoom
+      ? `${customerOrigin}/order/${orgSlug}/room/${number}`
+      : `${customerOrigin}/order/${orgSlug}/${number}`
   return (
     <div className="print-sheet fixed inset-0 z-[60] overflow-y-auto">
       <div
@@ -15,7 +22,7 @@ export default function BulkQrSheet({ tables, orgSlug, orgName, customerOrigin, 
           <div className="text-[10px] uppercase tracking-[0.3em] text-saffron-700">
             {orgName || 'Restaurant'}
           </div>
-          <div className="font-display text-lg">QR sheet · {tables.length} {tables.length === 1 ? 'table' : 'tables'}</div>
+          <div className="font-display text-lg">QR sheet · {tables.length} {tables.length === 1 ? noun : `${noun}s`}</div>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -37,20 +44,20 @@ export default function BulkQrSheet({ tables, orgSlug, orgName, customerOrigin, 
         <div className="text-center mb-6">
           <h1 className="font-display text-3xl">{orgName || 'Scan to order'}</h1>
           <p className="text-sm mt-1 opacity-70">
-            Scan the QR at your table to view the menu and place your order.
+            Scan the QR at your {noun} to view the menu and place your order.
           </p>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
           {tables.map((t) => {
-            const url = `${customerOrigin}/order/${orgSlug}/${t.number}`
+            const url = urlFor(t.number)
             return (
               <div
                 key={t.number}
                 className="border border-black/20 rounded-2xl p-4 flex flex-col items-center text-center break-inside-avoid"
                 style={{ pageBreakInside: 'avoid' }}
               >
-                <div className="text-[10px] uppercase tracking-[0.3em] opacity-70">Table</div>
+                <div className="text-[10px] uppercase tracking-[0.3em] opacity-70">{Noun}</div>
                 <div className="font-display text-4xl leading-none mt-0.5">{t.number}</div>
                 <div className="mt-3">
                   <QRCodeCanvas value={url} size={170} level="M" includeMargin />
@@ -58,9 +65,11 @@ export default function BulkQrSheet({ tables, orgSlug, orgName, customerOrigin, 
                 <div className="text-[10px] mt-2 break-all opacity-70 font-mono">
                   {url}
                 </div>
-                <div className="text-[10px] mt-1 opacity-70">
-                  Seats: {t.seats}
-                </div>
+                {!isRoom && (
+                  <div className="text-[10px] mt-1 opacity-70">
+                    Seats: {t.seats}
+                  </div>
+                )}
               </div>
             )
           })}
@@ -68,7 +77,7 @@ export default function BulkQrSheet({ tables, orgSlug, orgName, customerOrigin, 
 
         {tables.length === 0 && (
           <div className="text-center text-sm opacity-70 py-12">
-            No tables to print yet. Add at least one table first.
+            No {noun}s to print yet. Add at least one {noun} first.
           </div>
         )}
       </div>

@@ -206,7 +206,11 @@ export default function Tracking() {
               <span className="font-semibold text-saffron-600 dark:text-saffron-400">
                 #{order.queuePosition || 1}
               </span>{' '}
-              · <FormattedMessage id="common.table" /> {order.tableNo}
+              · {order.serviceType === 'takeaway' ? (
+                <><FormattedMessage id="common.takeaway" /> #{order.tableNo}</>
+              ) : (
+                <><FormattedMessage id={order.serviceType === 'room' ? 'common.room' : 'common.table'} /> {order.tableNo}</>
+              )}
             </p>
           </div>
           <div

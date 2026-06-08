@@ -5,7 +5,8 @@ import { FormattedMessage, useIntl } from 'react-intl'
 import { Search, Plus, Leaf, AlertCircle, Pencil, X, ArrowRight, Loader2, Receipt, ClipboardList, ChefHat } from 'lucide-react'
 import clsx from 'clsx'
 import { toast } from 'sonner'
-import { fetchMenu, fetchCategories, fetchTable, fetchTableTab } from '../lib/api'
+import { fetchMenu, fetchCategories, fetchTable, fetchLocationTab } from '../lib/api'
+import { locationLabel } from '../lib/location'
 import { useSessionStore, selectCartCount, selectCartSubtotal } from '../store/useSessionStore'
 import { useOrgStore } from '../store/useOrgStore'
 import SpiceMeter from '../components/SpiceMeter'
@@ -22,6 +23,7 @@ export default function Menu() {
   const intl = useIntl()
   const navigate = useNavigate()
   const tableNo = useSessionStore((s) => s.tableNo)
+  const serviceType = useSessionStore((s) => s.serviceType)
   const setTable = useSessionStore((s) => s.setTable)
   const addItem = useSessionStore((s) => s.addItem)
   const cartCount = useSessionStore(selectCartCount)
@@ -38,8 +40,11 @@ export default function Menu() {
   const [tab, setTab] = useState(null)
   const [tabOpen, setTabOpen] = useState(false)
 
+  const isTakeaway = serviceType === 'takeaway'
+
   useEffect(() => {
-    if (!tableNo) {
+    // Takeaway has no tableNo; table/room must have one to be a valid session.
+    if (!tableNo && !isTakeaway) {
       navigate('/')
       return
     }
@@ -53,16 +58,17 @@ export default function Menu() {
         setError(e?.message || 'Failed to load menu')
         setLoading(false)
       })
-  }, [navigate, tableNo])
+  }, [navigate, tableNo, isTakeaway])
 
   // Keep the running tab fresh: on mount, when the tab is opened, and every
   // time the customer brings the tab back into focus (e.g. after placing an
   // order and tapping "back"). No realtime socket — polling on focus is enough.
   useEffect(() => {
-    if (!tableNo) return
+    // Takeaway orders are independent — no shared running tab to poll.
+    if (!tableNo || isTakeaway) return
     let alive = true
     const refresh = () => {
-      fetchTableTab(tableNo)
+      fetchLocationTab(serviceType, tableNo)
         .then((t) => alive && setTab(t))
         .catch(() => {})
     }
@@ -75,7 +81,7 @@ export default function Menu() {
       document.removeEventListener('visibilitychange', onFocus)
       window.removeEventListener('focus', refresh)
     }
-  }, [tableNo, tabOpen])
+  }, [tableNo, serviceType, tabOpen, isTakeaway])
 
   const filtered = useMemo(() => {
     return menu.filter((d) => {
@@ -111,17 +117,26 @@ export default function Menu() {
           <FormattedMessage
             id="menu.subtitle"
             values={{
-              table: (
-                <button
-                  type="button"
-                  onClick={() => setChangingTable(true)}
-                  className="inline-flex items-center gap-1 font-semibold text-saffron-600 dark:text-saffron-400 hover:text-saffron-700 dark:hover:text-saffron-300 underline decoration-saffron-300/60 decoration-dotted underline-offset-4"
-                  title={intl.formatMessage({ id: 'menu.changeTable' })}
-                >
-                  <FormattedMessage id="common.table" /> {tableNo}
-                  <Pencil className="h-3 w-3 opacity-70" />
-                </button>
-              ),
+              table:
+                isTakeaway ? (
+                  <span className="font-semibold text-saffron-600 dark:text-saffron-400">
+                    <FormattedMessage id="common.takeaway" />
+                  </span>
+                ) : serviceType === 'room' ? (
+                  <span className="font-semibold text-saffron-600 dark:text-saffron-400">
+                    <FormattedMessage id="common.room" /> {tableNo}
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setChangingTable(true)}
+                    className="inline-flex items-center gap-1 font-semibold text-saffron-600 dark:text-saffron-400 hover:text-saffron-700 dark:hover:text-saffron-300 underline decoration-saffron-300/60 decoration-dotted underline-offset-4"
+                    title={intl.formatMessage({ id: 'menu.changeTable' })}
+                  >
+                    <FormattedMessage id="common.table" /> {tableNo}
+                    <Pencil className="h-3 w-3 opacity-70" />
+                  </button>
+                ),
             }}
           />
         </p>
@@ -286,6 +301,7 @@ export default function Menu() {
           <TableTabSheet
             tab={tab}
             tableNo={tableNo}
+            serviceType={serviceType}
             onClose={() => setTabOpen(false)}
             onTrack={(orderId) => navigate(`/track/${orderId}`)}
           />
@@ -305,7 +321,7 @@ const STAGE_LABEL_ID = {
   served: 'tracking.stage.served',
 }
 
-function TableTabSheet({ tab, tableNo, onClose, onTrack }) {
+function TableTabSheet({ tab, tableNo, serviceType, onClose, onTrack }) {
   const branding = useOrgStore((s) => s.branding)
   const gstRate = Number.isFinite(branding?.gstRate) ? branding.gstRate : 5
   const taxLabel = branding?.taxLabel || 'GST'
@@ -330,7 +346,7 @@ function TableTabSheet({ tab, tableNo, onClose, onTrack }) {
               <FormattedMessage id="menu.tab.title" />
             </div>
             <h2 className="font-display text-3xl" style={{ color: 'var(--text)' }}>
-              <FormattedMessage id="common.table" /> {tableNo}
+              <FormattedMessage id={serviceType === 'room' ? 'common.room' : 'common.table'} /> {tableNo}
             </h2>
             <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
               <FormattedMessage

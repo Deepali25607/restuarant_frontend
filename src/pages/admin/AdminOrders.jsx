@@ -5,6 +5,7 @@ import clsx from 'clsx'
 import { toast } from 'sonner'
 import { fetchAdminOrders, setOrderStatus } from '../../lib/api'
 import { getSocket } from '../../lib/socket'
+import { locationLabel } from '../../lib/location'
 
 const STATUSES = [
   { key: 'received', label: 'Received', icon: Bell, tone: 'bg-saffron-100 text-saffron-800' },
@@ -35,13 +36,13 @@ export default function AdminOrders() {
     socket.emit('join:admin')
     const onNew = (o) => {
       setOrders((prev) => (prev.find((x) => x.id === o.id) ? prev : [o, ...prev]))
-      toast.success(`Table ${o.tableNo} · new order`, { description: `₹${o.amounts?.total}` })
+      toast.success(`${locationLabel(o)} · new order`, { description: `₹${o.amounts?.total}` })
     }
     const onUpdate = (o) =>
       setOrders((prev) => prev.map((x) => (x.id === o.id ? o : x)))
     const onPaid = (o) => {
       setOrders((prev) => prev.map((x) => (x.id === o.id ? o : x)))
-      toast.success(`Table ${o.tableNo} · payment received`, { description: `${o.payment.method.toUpperCase()} · ₹${o.amounts.total}` })
+      toast.success(`${locationLabel(o)} · payment received`, { description: `${o.payment.method.toUpperCase()} · ₹${o.amounts.total}` })
     }
     socket.on('order:new', onNew)
     socket.on('order:updated', onUpdate)
@@ -104,7 +105,7 @@ export default function AdminOrders() {
                 try {
                   await setOrderStatus(o.id, next)
                   const target = STATUSES.find((s) => s.key === next)
-                  toast.success(`T${o.tableNo} → ${target?.label || next}`)
+                  toast.success(`${locationLabel(o, { short: true })} → ${target?.label || next}`)
                 } catch (e) {
                   setError(e?.response?.data?.message || e.message)
                 }
@@ -161,10 +162,10 @@ function OrderCard({ order, onSetStatus }) {
       <div className="flex items-start justify-between">
         <div>
           <div className="text-[11px] uppercase tracking-widest text-masala-600 dark:text-saffron-300">
-            Table
+            {order.serviceType === 'room' ? 'Room' : 'Table'}
           </div>
           <div className="font-display text-2xl leading-none" style={{ color: 'var(--text)' }}>
-            T{order.tableNo}
+            {locationLabel(order, { short: true })}
           </div>
           <div className="text-[10px] font-mono mt-1" style={{ color: 'var(--text-muted)' }}>
             #{order.id.slice(-6).toUpperCase()}
