@@ -15,10 +15,12 @@ import {
   ShieldCheck,
   Eye,
   EyeOff,
+  Ticket,
+  X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import clsx from 'clsx'
-import { fetchPublicPlans, signupRequest, verifySignup } from '../lib/api'
+import { fetchPublicPlans, signupRequest, verifySignup, validateCoupon } from '../lib/api'
 import { openRazorpayCheckout } from '../lib/razorpay'
 import { useAuthStore } from '../store/useAuthStore'
 
@@ -34,6 +36,11 @@ export default function Signup() {
   const [error, setError] = useState('')
   const [show, setShow] = useState(false)
   const [form, setForm] = useState({ orgName: '', name: '', email: '', phone: '', password: '' })
+  // Coupon: code typed by the customer + the validated result from the server.
+  const [coupon, setCoupon] = useState('')
+  const [couponInfo, setCouponInfo] = useState(null) // { discount, finalAmount, ... } when valid
+  const [couponError, setCouponError] = useState('')
+  const [checkingCoupon, setCheckingCoupon] = useState(false)
 
   useEffect(() => {
     fetchPublicPlans()
@@ -48,8 +55,32 @@ export default function Signup() {
   )
   const isContact = selectedPlan?.contactSales
   const isPaid = Boolean(selectedPlan?.billable)
+  // What the customer actually pays — discounted when a coupon is applied.
+  const payable = couponInfo ? couponInfo.finalAmount : (selectedPlan?.price || 0)
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
+
+  // A coupon's discount depends on the plan, so clear it when the plan changes.
+  useEffect(() => { setCouponInfo(null); setCouponError('') }, [selected])
+
+  const applyCoupon = async () => {
+    const code = coupon.trim()
+    if (!code) return
+    setCheckingCoupon(true); setCouponError(''); setCouponInfo(null)
+    try {
+      const res = await validateCoupon({ code, plan: selected })
+      if (res.valid) {
+        setCouponInfo(res)
+        toast.success(`Coupon applied — ₹${res.discount.toLocaleString()} off`)
+      } else {
+        setCouponError(res.message || 'This coupon is not valid.')
+      }
+    } catch (e) {
+      setCouponError(e?.response?.data?.message || e.message)
+    } finally {
+      setCheckingCoupon(false)
+    }
+  }
 
   // Land the freshly-created admin straight in their dashboard.
   const enterDashboard = (session) => {
@@ -66,6 +97,7 @@ export default function Signup() {
     try {
       const res = await signupRequest({
         plan: selected,
+        coupon: couponInfo ? coupon.trim() : undefined,
         org: { name: form.orgName },
         admin: {
           name: form.name,
@@ -90,6 +122,7 @@ export default function Signup() {
         }
         const session = await verifySignup({
           orgId: res.orgId,
+          coupon: couponInfo ? coupon.trim() : undefined,
           razorpay_order_id: resp.razorpay_order_id,
           razorpay_payment_id: resp.razorpay_payment_id,
           razorpay_signature: resp.razorpay_signature,
@@ -180,9 +213,16 @@ export default function Signup() {
                 Create your {selectedPlan.label} account
               </h2>
               <div className="text-sm text-masala-600 dark:text-saffron-200/70">
-                {selectedPlan.price === 0 || selectedPlan.price == null
-                  ? selectedPlan.priceNote
-                  : <>₹{selectedPlan.price.toLocaleString()} · {selectedPlan.priceNote}</>}
+                {selectedPlan.price === 0 || selectedPlan.price == null ? (
+                  selectedPlan.priceNote
+                ) : couponInfo ? (
+                  <>
+                    <span className="line-through opacity-60">₹{selectedPlan.price.toLocaleString()}</span>{' '}
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">₹{payable.toLocaleString()}</span> · {selectedPlan.priceNote}
+                  </>
+                ) : (
+                  <>₹{selectedPlan.price.toLocaleString()} · {selectedPlan.priceNote}</>
+                )}
               </div>
             </div>
 
@@ -209,11 +249,48 @@ export default function Signup() {
                 }
               />
 
+              {/* Coupon — paid plans only (trial is already free). */}
+              {isPaid && (
+                <div>
+                  <div className="flex gap-2">
+                    <div className="flex items-center gap-2 flex-1 rounded-2xl border border-saffron-200 dark:border-masala-700 bg-cream dark:bg-masala-800 px-3 py-2.5">
+                      <Ticket className="h-4 w-4 text-saffron-600" />
+                      <input
+                        value={coupon}
+                        onChange={(e) => { setCoupon(e.target.value.toUpperCase()); setCouponError(''); if (couponInfo) setCouponInfo(null) }}
+                        placeholder="Coupon code"
+                        className="flex-1 bg-transparent outline-none text-sm uppercase"
+                        style={{ color: 'var(--text)' }}
+                      />
+                      {couponInfo && (
+                        <button type="button" onClick={() => { setCoupon(''); setCouponInfo(null) }} className="text-masala-500 hover:text-chilli-600" aria-label="Remove coupon">
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={applyCoupon}
+                      disabled={!coupon.trim() || checkingCoupon || Boolean(couponInfo)}
+                      className="btn-secondary !px-4 disabled:opacity-50"
+                    >
+                      {checkingCoupon ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Apply'}
+                    </button>
+                  </div>
+                  {couponError && <p className="mt-1.5 text-xs text-chilli-600">{couponError}</p>}
+                  {couponInfo && (
+                    <p className="mt-1.5 text-xs text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
+                      <Check className="h-3.5 w-3.5" /> {couponInfo.code} applied — you save ₹{couponInfo.discount.toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              )}
+
               <button type="submit" disabled={submitting} className="btn-primary w-full !py-3">
                 {submitting ? (
                   <><Loader2 className="h-4 w-4 animate-spin" /> Setting up…</>
                 ) : isPaid ? (
-                  <>Subscribe & create — ₹{(selectedPlan.price || 0).toLocaleString()} <ArrowRight className="h-4 w-4" /></>
+                  <>Subscribe &amp; create — ₹{payable.toLocaleString()} <ArrowRight className="h-4 w-4" /></>
                 ) : (
                   <>Start free trial <ArrowRight className="h-4 w-4" /></>
                 )}

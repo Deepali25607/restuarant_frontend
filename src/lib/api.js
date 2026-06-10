@@ -110,7 +110,18 @@ export const changePassword = (payload) =>
   api.post('/auth/change-password', payload).then((r) => r.data)
 // Public self-service signup: browse plans, create an org, confirm payment.
 export const fetchPublicPlans = () => api.get('/public/plans').then((r) => r.data)
+export const validateCoupon = (payload) =>
+  api.post('/public/coupons/validate', payload).then((r) => r.data)
 export const signupRequest = (payload) => api.post('/public/signup', payload).then((r) => r.data)
+// Platform-admin plan & coupon management.
+export const fetchAdminPlans = () => api.get('/super-admin/plans').then((r) => r.data)
+export const createPlan = (payload) => api.post('/super-admin/plans', payload).then((r) => r.data)
+export const updatePlan = (id, patch) => api.patch(`/super-admin/plans/${id}`, patch).then((r) => r.data)
+export const deletePlan = (id) => api.delete(`/super-admin/plans/${id}`).then((r) => r.data)
+export const fetchCoupons = () => api.get('/super-admin/coupons').then((r) => r.data)
+export const createCoupon = (payload) => api.post('/super-admin/coupons', payload).then((r) => r.data)
+export const updateCoupon = (id, patch) => api.patch(`/super-admin/coupons/${id}`, patch).then((r) => r.data)
+export const deleteCoupon = (id) => api.delete(`/super-admin/coupons/${id}`).then((r) => r.data)
 export const verifySignup = (payload) =>
   api.post('/public/signup/verify', payload).then((r) => r.data)
 export const adminOverview = () => api.get('/admin/overview').then((r) => r.data)

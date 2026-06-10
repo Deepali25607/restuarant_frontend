@@ -29,6 +29,10 @@ import {
   Check,
   Link2,
   QrCode,
+  Package,
+  Ticket,
+  Trash2,
+  Loader2,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { toast } from 'sonner'
@@ -44,6 +48,14 @@ import {
   createInvoice,
   updateInvoice,
   updatePlatformBranding,
+  fetchAdminPlans,
+  createPlan,
+  updatePlan,
+  deletePlan,
+  fetchCoupons,
+  createCoupon,
+  updateCoupon,
+  deleteCoupon,
 } from '../../lib/api'
 import { useAuthStore } from '../../store/useAuthStore'
 import { usePlatformStore, loadPlatformBranding } from '../../store/usePlatformStore'
@@ -87,6 +99,7 @@ export default function SuperAdmin() {
   const [managing, setManaging] = useState(null) // org currently in Manage Subscription dialog
   const [editingPlatform, setEditingPlatform] = useState(false)
   const [created, setCreated] = useState(null) // freshly onboarded org → show its URL
+  const [view, setView] = useState('orgs') // 'orgs' | 'plans' | 'coupons'
 
   useEffect(() => {
     if (!token || user?.role !== 'super_admin') return
@@ -202,6 +215,29 @@ export default function SuperAdmin() {
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-8 space-y-8">
+        <div className="flex bg-white dark:bg-masala-800 border border-saffron-200 dark:border-masala-700 rounded-full p-1 w-fit">
+          {[
+            { key: 'orgs', label: 'Organizations', icon: Building2 },
+            { key: 'plans', label: 'Plans', icon: Package },
+            { key: 'coupons', label: 'Coupons', icon: Ticket },
+          ].map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setView(t.key)}
+              className={clsx(
+                'inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold transition',
+                view === t.key ? 'bg-curry-gradient text-white shadow-warm' : 'text-masala-700 dark:text-saffron-200',
+              )}
+            >
+              <t.icon className="h-4 w-4" /> {t.label}
+            </button>
+          ))}
+        </div>
+
+        {view === 'plans' && <PlansManager onError={setError} />}
+        {view === 'coupons' && <CouponsManager onError={setError} />}
+
+        {view === 'orgs' && (<>
         <div className="flex items-end justify-between gap-3 flex-wrap">
           <div>
             <span className="eyebrow">
@@ -271,6 +307,7 @@ export default function SuperAdmin() {
             </div>
           )}
         </div>
+        </>)}
       </main>
 
       <AnimatePresence>
@@ -1530,5 +1567,358 @@ function InvoiceRow({ inv, busy, onMarkPaid, onVoid }) {
         </>
       )}
     </div>
+  )
+}
+
+// ── Plans manager ─────────────────────────────────────────────────────
+const numOrNull = (v) => (v === '' || v == null ? null : Number(v))
+const nullToStr = (v) => (v == null ? '' : String(v))
+
+const blankPlan = {
+  id: '', label: '', monthlyPrice: 0, durationDays: 30, billable: true, isTrial: false,
+  contactSales: false, recommended: false, selfServe: true, sortOrder: 0, active: true,
+  limits: { tables: '', rooms: '', users: '', dishes: '' },
+  channels: { table: true, room: false, takeaway: false },
+}
+
+function PlansManager({ onError }) {
+  const [plans, setPlans] = useState(null)
+  const [editing, setEditing] = useState(null)
+
+  const load = () => fetchAdminPlans().then((d) => setPlans(d.plans)).catch((e) => onError(e?.response?.data?.message || e.message))
+  useEffect(() => { load() }, [])
+
+  const remove = async (p) => {
+    if (!confirm(`Delete plan "${p.label}"?`)) return
+    try { await deletePlan(p.id); load() }
+    catch (e) { toast.error(e?.response?.data?.message || e.message) }
+  }
+
+  if (!plans) return <div className="card p-10 flex items-center justify-center text-masala-600"><Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading plans…</div>
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-end justify-between gap-3 flex-wrap">
+        <div>
+          <span className="eyebrow"><Package className="h-3.5 w-3.5" /> Catalog</span>
+          <h1 className="section-heading mt-1">Subscription plans</h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
+            These power the public pricing page and what each new organization is provisioned with.
+          </p>
+        </div>
+        <button onClick={() => setEditing({ ...blankPlan, _new: true })} className="btn-primary">
+          <Plus className="h-4 w-4" /> Add plan
+        </button>
+      </div>
+
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {plans.map((p) => (
+          <div key={p.id} className={clsx('card p-4 flex flex-col gap-2', !p.active && 'opacity-60')}>
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="font-display text-lg" style={{ color: 'var(--text)' }}>{p.label}</div>
+                <div className="text-[10px] font-mono" style={{ color: 'var(--text-muted)' }}>{p.id}</div>
+              </div>
+              <div className="text-right">
+                <div className="font-display text-xl" style={{ color: 'var(--text)' }}>
+                  {p.contactSales ? 'Custom' : `₹${p.monthlyPrice.toLocaleString()}`}
+                </div>
+                <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                  {p.durationDays ? `${p.durationDays}d cycle` : 'no expiry'}
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {p.recommended && <Tag>Popular</Tag>}
+              {p.isTrial && <Tag>Trial</Tag>}
+              {p.contactSales && <Tag>Contact sales</Tag>}
+              {!p.selfServe && <Tag>Hidden on signup</Tag>}
+              {!p.active && <Tag>Inactive</Tag>}
+            </div>
+            <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              {['tables', 'rooms', 'users', 'dishes'].map((k) => `${p.limits[k] == null ? '∞' : p.limits[k]} ${k}`).join(' · ')}
+            </div>
+            <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              Channels: {['table', 'room', 'takeaway'].filter((c) => p.channels[c]).join(', ') || '—'}
+            </div>
+            <div className="flex gap-2 mt-auto pt-2">
+              <button onClick={() => setEditing({ ...p, _new: false, limits: { ...p.limits }, channels: { ...p.channels } })} className="btn-ghost !py-1.5 !px-3 text-xs">
+                <Pencil className="h-3.5 w-3.5" /> Edit
+              </button>
+              <button onClick={() => remove(p)} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold border border-chilli-200 text-chilli-700 hover:bg-chilli-50">
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <AnimatePresence>
+        {editing && <PlanEditor draft={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load() }} />}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+function PlanEditor({ draft, onClose, onSaved }) {
+  const [form, setForm] = useState({ ...draft, limits: { tables: nullToStr(draft.limits.tables), rooms: nullToStr(draft.limits.rooms), users: nullToStr(draft.limits.users), dishes: nullToStr(draft.limits.dishes) } })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const set = (patch) => setForm((f) => ({ ...f, ...patch }))
+
+  const save = async () => {
+    setBusy(true); setError('')
+    try {
+      const payload = {
+        label: form.label,
+        monthlyPrice: Number(form.monthlyPrice) || 0,
+        durationDays: form.durationDays === '' ? null : Number(form.durationDays),
+        billable: form.billable, isTrial: form.isTrial,
+        contactSales: form.contactSales, recommended: form.recommended,
+        selfServe: form.selfServe, active: form.active,
+        sortOrder: Number(form.sortOrder) || 0,
+        limits: { tables: numOrNull(form.limits.tables), rooms: numOrNull(form.limits.rooms), users: numOrNull(form.limits.users), dishes: numOrNull(form.limits.dishes) },
+        channels: form.channels,
+      }
+      if (draft._new) { payload.id = form.id || form.label; await createPlan(payload) }
+      else await updatePlan(draft.id, payload)
+      toast.success('Plan saved')
+      onSaved()
+    } catch (e) {
+      setError(e?.response?.data?.message || e.message)
+    } finally { setBusy(false) }
+  }
+
+  return (
+    <Modal onClose={onClose} title={draft._new ? 'New plan' : `Edit ${draft.label}`}>
+      {error && <div className="text-sm text-chilli-700 bg-chilli-50 border border-chilli-200 rounded-2xl px-3 py-2 mb-3">{error}</div>}
+      <div className="grid sm:grid-cols-2 gap-3">
+        <MiniField label="Name" value={form.label} onChange={(v) => set({ label: v })} />
+        <MiniField label="Price (₹ / cycle)" type="number" value={form.monthlyPrice} onChange={(v) => set({ monthlyPrice: v })} />
+        <MiniField label="Cycle length (days, blank = no expiry)" type="number" value={form.durationDays} onChange={(v) => set({ durationDays: v })} />
+        <MiniField label="Sort order" type="number" value={form.sortOrder} onChange={(v) => set({ sortOrder: v })} />
+      </div>
+      <div className="mt-3 text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Limits (blank = unlimited)</div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-2">
+        {['tables', 'rooms', 'users', 'dishes'].map((k) => (
+          <MiniField key={k} label={k} type="number" value={form.limits[k]} onChange={(v) => set({ limits: { ...form.limits, [k]: v } })} />
+        ))}
+      </div>
+      <div className="mt-3 text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Allowed channels</div>
+      <div className="flex gap-4 mt-2">
+        {['table', 'room', 'takeaway'].map((c) => (
+          <MiniCheck key={c} label={c} checked={form.channels[c]} onChange={(v) => set({ channels: { ...form.channels, [c]: v } })} />
+        ))}
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <MiniCheck label="Billable (paid)" checked={form.billable} onChange={(v) => set({ billable: v })} />
+        <MiniCheck label="Is the free trial" checked={form.isTrial} onChange={(v) => set({ isTrial: v })} />
+        <MiniCheck label="Recommended badge" checked={form.recommended} onChange={(v) => set({ recommended: v })} />
+        <MiniCheck label="Contact-sales (no checkout)" checked={form.contactSales} onChange={(v) => set({ contactSales: v })} />
+        <MiniCheck label="Show on public signup" checked={form.selfServe} onChange={(v) => set({ selfServe: v })} />
+        <MiniCheck label="Active" checked={form.active} onChange={(v) => set({ active: v })} />
+      </div>
+      <div className="mt-5 flex justify-end gap-2">
+        <button onClick={onClose} className="btn-ghost" disabled={busy}>Cancel</button>
+        <button onClick={save} className="btn-primary" disabled={busy || !form.label}>
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save plan
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
+// ── Coupons manager ───────────────────────────────────────────────────
+const blankCoupon = { code: '', description: '', discountType: 'percent', discountValue: 10, appliesToPlans: [], maxRedemptions: '', expiresAt: '', active: true }
+
+function CouponsManager({ onError }) {
+  const [coupons, setCoupons] = useState(null)
+  const [plans, setPlans] = useState([])
+  const [editing, setEditing] = useState(null)
+
+  const load = () => fetchCoupons().then((d) => setCoupons(d.coupons)).catch((e) => onError(e?.response?.data?.message || e.message))
+  useEffect(() => {
+    load()
+    fetchAdminPlans().then((d) => setPlans(d.plans.filter((p) => p.billable))).catch(() => {})
+  }, [])
+
+  const remove = async (c) => {
+    if (!confirm(`Delete coupon ${c.code}?`)) return
+    try { await deleteCoupon(c.id); load() } catch (e) { toast.error(e?.response?.data?.message || e.message) }
+  }
+
+  if (!coupons) return <div className="card p-10 flex items-center justify-center text-masala-600"><Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading coupons…</div>
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-end justify-between gap-3 flex-wrap">
+        <div>
+          <span className="eyebrow"><Ticket className="h-3.5 w-3.5" /> Discounts</span>
+          <h1 className="section-heading mt-1">Subscription coupons</h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
+            Customers enter these at signup for a discount on their first payment.
+          </p>
+        </div>
+        <button onClick={() => setEditing({ ...blankCoupon, _new: true })} className="btn-primary">
+          <Plus className="h-4 w-4" /> Create coupon
+        </button>
+      </div>
+
+      <div className="card overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-saffron-50/60 dark:bg-masala-700/40">
+            <tr className="text-left text-xs uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
+              <th className="px-4 py-3">Code</th><th className="px-4 py-3">Discount</th>
+              <th className="px-4 py-3">Plans</th><th className="px-4 py-3">Used</th>
+              <th className="px-4 py-3">Expires</th><th className="px-4 py-3"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-saffron-100 dark:divide-masala-700">
+            {coupons.map((c) => (
+              <tr key={c.id} className={clsx(!c.active && 'opacity-50')}>
+                <td className="px-4 py-3 font-mono font-bold" style={{ color: 'var(--text)' }}>{c.code}</td>
+                <td className="px-4 py-3" style={{ color: 'var(--text)' }}>
+                  {c.discountType === 'flat' ? `₹${c.discountValue}` : `${c.discountValue}%`} off
+                </td>
+                <td className="px-4 py-3" style={{ color: 'var(--text-muted)' }}>{c.appliesToPlans.length ? c.appliesToPlans.join(', ') : 'All paid'}</td>
+                <td className="px-4 py-3" style={{ color: 'var(--text-muted)' }}>{c.redemptions}{c.maxRedemptions != null ? ` / ${c.maxRedemptions}` : ''}</td>
+                <td className="px-4 py-3" style={{ color: 'var(--text-muted)' }}>{c.expiresAt ? new Date(c.expiresAt).toLocaleDateString() : '—'}</td>
+                <td className="px-4 py-3 text-right">
+                  <div className="inline-flex gap-1">
+                    <button onClick={() => setEditing({ ...c, _new: false, maxRedemptions: nullToStr(c.maxRedemptions), expiresAt: c.expiresAt ? c.expiresAt.slice(0, 10) : '' })} className="btn-ghost !py-1.5 !px-3 text-xs"><Pencil className="h-3.5 w-3.5" /></button>
+                    <button onClick={() => remove(c)} className="inline-flex items-center rounded-full px-3 py-1.5 text-xs border border-chilli-200 text-chilli-700 hover:bg-chilli-50"><Trash2 className="h-3.5 w-3.5" /></button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {coupons.length === 0 && (
+              <tr><td colSpan={6} className="px-4 py-10 text-center" style={{ color: 'var(--text-muted)' }}>No coupons yet.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <AnimatePresence>
+        {editing && <CouponEditor draft={editing} plans={plans} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load() }} />}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+function CouponEditor({ draft, plans, onClose, onSaved }) {
+  const [form, setForm] = useState({ ...draft })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const set = (patch) => setForm((f) => ({ ...f, ...patch }))
+  const togglePlan = (id) => set({ appliesToPlans: form.appliesToPlans.includes(id) ? form.appliesToPlans.filter((x) => x !== id) : [...form.appliesToPlans, id] })
+
+  const save = async () => {
+    setBusy(true); setError('')
+    try {
+      const payload = {
+        code: form.code, description: form.description,
+        discountType: form.discountType, discountValue: Number(form.discountValue) || 0,
+        appliesToPlans: form.appliesToPlans,
+        maxRedemptions: form.maxRedemptions === '' ? null : Number(form.maxRedemptions),
+        expiresAt: form.expiresAt || null, active: form.active,
+      }
+      if (draft._new) await createCoupon(payload)
+      else await updateCoupon(draft.id, payload)
+      toast.success('Coupon saved')
+      onSaved()
+    } catch (e) { setError(e?.response?.data?.message || e.message) } finally { setBusy(false) }
+  }
+
+  return (
+    <Modal onClose={onClose} title={draft._new ? 'New coupon' : `Edit ${draft.code}`}>
+      {error && <div className="text-sm text-chilli-700 bg-chilli-50 border border-chilli-200 rounded-2xl px-3 py-2 mb-3">{error}</div>}
+      <div className="grid sm:grid-cols-2 gap-3">
+        <MiniField label="Code" value={form.code} onChange={(v) => set({ code: v.toUpperCase() })} disabled={!draft._new} />
+        <div>
+          <span className="text-[10px] uppercase tracking-widest opacity-70">Discount</span>
+          <div className="mt-1 flex gap-2">
+            <select value={form.discountType} onChange={(e) => set({ discountType: e.target.value })} className="rounded-2xl border px-2 py-2 text-sm" style={{ background: 'var(--input-bg)', borderColor: 'var(--input-border)', color: 'var(--text)' }}>
+              <option value="percent">% off</option>
+              <option value="flat">₹ off</option>
+            </select>
+            <input type="number" value={form.discountValue} onChange={(e) => set({ discountValue: e.target.value })} className="flex-1 rounded-2xl border px-3 py-2 text-sm" style={{ background: 'var(--input-bg)', borderColor: 'var(--input-border)', color: 'var(--text)' }} />
+          </div>
+        </div>
+      </div>
+      <MiniField label="Description (optional)" value={form.description} onChange={(v) => set({ description: v })} className="mt-3" />
+      <div className="grid sm:grid-cols-2 gap-3 mt-3">
+        <MiniField label="Max redemptions (blank = ∞)" type="number" value={form.maxRedemptions} onChange={(v) => set({ maxRedemptions: v })} />
+        <MiniField label="Expires on (blank = never)" type="date" value={form.expiresAt} onChange={(v) => set({ expiresAt: v })} />
+      </div>
+      <div className="mt-3">
+        <span className="text-[10px] uppercase tracking-widest opacity-70">Applies to plans (none selected = all paid plans)</span>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {plans.map((p) => (
+            <button key={p.id} type="button" onClick={() => togglePlan(p.id)} className={clsx('rounded-full px-3 py-1.5 text-xs font-semibold border', form.appliesToPlans.includes(p.id) ? 'bg-curry-gradient text-white border-transparent' : 'border-saffron-200 text-masala-700 dark:text-saffron-200')}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="mt-3"><MiniCheck label="Active" checked={form.active} onChange={(v) => set({ active: v })} /></div>
+      <div className="mt-5 flex justify-end gap-2">
+        <button onClick={onClose} className="btn-ghost" disabled={busy}>Cancel</button>
+        <button onClick={save} className="btn-primary" disabled={busy || !form.code}>
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save coupon
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
+// ── Small shared UI for the managers ──────────────────────────────────
+function Tag({ children }) {
+  return <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-saffron-100 text-saffron-800 dark:bg-masala-700 dark:text-saffron-200">{children}</span>
+}
+
+function MiniField({ label, value, onChange, type = 'text', disabled, className }) {
+  return (
+    <label className={clsx('block', className)}>
+      <span className="text-[10px] uppercase tracking-widest opacity-70">{label}</span>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className={clsx('mt-1 w-full rounded-2xl border px-3 py-2 text-sm', disabled && 'opacity-60')}
+        style={{ background: 'var(--input-bg)', borderColor: 'var(--input-border)', color: 'var(--text)' }}
+      />
+    </label>
+  )
+}
+
+function MiniCheck({ label, checked, onChange }) {
+  return (
+    <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: 'var(--text)' }}>
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="h-4 w-4 rounded accent-saffron-500" />
+      <span className="capitalize">{label}</span>
+    </label>
+  )
+}
+
+function Modal({ title, children, onClose }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      onClick={onClose}
+      className="fixed inset-0 z-50 bg-masala-900/50 backdrop-blur-sm flex items-end md:items-center justify-center p-4"
+    >
+      <motion.div
+        initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 30, opacity: 0 }}
+        onClick={(e) => e.stopPropagation()}
+        className="card p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-display text-2xl" style={{ color: 'var(--text)' }}>{title}</h2>
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-saffron-100 dark:hover:bg-masala-700"><X className="h-4 w-4" /></button>
+        </div>
+        {children}
+      </motion.div>
+    </motion.div>
   )
 }
