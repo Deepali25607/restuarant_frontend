@@ -5,6 +5,7 @@ import clsx from 'clsx'
 import { IndianRupee, ShoppingBag, Table2, Activity, TrendingUp, Flame, Package, AlertTriangle } from 'lucide-react'
 import { adminOverview, fetchLowStock } from '../../lib/api'
 import { getSocket } from '../../lib/socket'
+import { orderLabel } from '../../lib/location'
 
 const STATUS_LABEL = {
   received: 'Received',
@@ -130,7 +131,7 @@ export default function AdminDashboard() {
                   {data.recent.map((o) => (
                     <tr key={o.id}>
                       <td className="py-3 pr-4 font-mono text-xs text-masala-700">
-                        #{o.id.slice(-6).toUpperCase()}
+                        {orderLabel(o)}
                       </td>
                       <td className="py-3 pr-4 font-semibold">T{o.tableNo}</td>
                       <td className="py-3 pr-4">

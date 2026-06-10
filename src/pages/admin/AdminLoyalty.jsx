@@ -11,6 +11,7 @@ import {
   X,
 } from 'lucide-react'
 import { fetchLoyaltyMembers, fetchLoyaltyHistory } from '../../lib/api'
+import { locationLabel, orderLabel } from '../../lib/location'
 
 export default function AdminLoyalty() {
   const [data, setData] = useState({ items: [], total: 0, summary: null })
@@ -190,7 +191,7 @@ export default function AdminLoyalty() {
                     <li key={o.id} className="py-3 flex justify-between gap-3">
                       <div>
                         <div className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>
-                          #{o.id.slice(-6).toUpperCase()} · T{o.tableNo}
+                          {orderLabel(o)} · {locationLabel(o, { short: true })}
                         </div>
                         <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
                           {new Date(o.createdAt).toLocaleString()}

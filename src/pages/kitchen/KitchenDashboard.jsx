@@ -24,7 +24,7 @@ import { fetchAdminOrders, setOrderStatus } from '../../lib/api'
 import { getSocket } from '../../lib/socket'
 import ThemeToggle from '../../components/ThemeToggle'
 import ChangePasswordModal from '../../components/ChangePasswordModal'
-import { locationLabel } from '../../lib/location'
+import { locationLabel, orderLabel } from '../../lib/location'
 import {
   getPrefs,
   setPrefs,
@@ -363,7 +363,7 @@ function KOTCard({ order, onAdvance }) {
         </div>
         <div className="text-right">
           <div className="text-[10px] font-mono text-masala-500">
-            #{order.id.slice(-6).toUpperCase()}
+            {orderLabel(order)}
           </div>
           <div
             className={clsx(

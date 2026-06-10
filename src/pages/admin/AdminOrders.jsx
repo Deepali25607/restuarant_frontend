@@ -5,7 +5,7 @@ import clsx from 'clsx'
 import { toast } from 'sonner'
 import { fetchAdminOrders, setOrderStatus } from '../../lib/api'
 import { getSocket } from '../../lib/socket'
-import { locationLabel } from '../../lib/location'
+import { locationLabel, orderLabel } from '../../lib/location'
 
 const STATUSES = [
   { key: 'received', label: 'Received', icon: Bell, tone: 'bg-saffron-100 text-saffron-800' },
@@ -168,7 +168,7 @@ function OrderCard({ order, onSetStatus }) {
             {locationLabel(order, { short: true })}
           </div>
           <div className="text-[10px] font-mono mt-1" style={{ color: 'var(--text-muted)' }}>
-            #{order.id.slice(-6).toUpperCase()}
+            {orderLabel(order)}
           </div>
         </div>
         <div className="flex flex-col items-end gap-1">

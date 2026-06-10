@@ -6,7 +6,7 @@ import { Search, Plus, Leaf, AlertCircle, Pencil, X, ArrowRight, Loader2, Receip
 import clsx from 'clsx'
 import { toast } from 'sonner'
 import { fetchMenu, fetchCategories, fetchTable, fetchLocationTab } from '../lib/api'
-import { locationLabel } from '../lib/location'
+import { locationLabel, orderLabel } from '../lib/location'
 import { useSessionStore, selectCartCount, selectCartSubtotal } from '../store/useSessionStore'
 import { useOrgStore } from '../store/useOrgStore'
 import SpiceMeter from '../components/SpiceMeter'
@@ -404,7 +404,7 @@ function TabOrderRow({ order, onTrack }) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-[10px] font-mono uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
-            #{order.id.slice(-6).toUpperCase()} · {placedAt}
+            {orderLabel(order)} · {placedAt}
           </div>
           <div className="text-sm font-semibold mt-0.5" style={{ color: 'var(--text)' }}>
             <FormattedMessage

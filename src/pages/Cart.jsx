@@ -23,7 +23,7 @@ import { openRazorpayCheckout } from '../lib/razorpay'
 import DishImage from '../components/DishImage'
 import clsx from 'clsx'
 import { useOrgStore } from '../store/useOrgStore'
-import { locationLabel } from '../lib/location'
+import { locationLabel, orderLabel } from '../lib/location'
 
 export default function Cart() {
   const intl = useIntl()
@@ -128,7 +128,7 @@ export default function Cart() {
 
   const finishOrder = (order) => {
     toast.success(intl.formatMessage({ id: 'cart.orderSent' }), {
-      description: `#${order.id.slice(-6).toUpperCase()} · ₹${order.amounts.total}`,
+      description: `${orderLabel(order)} · ₹${order.amounts.total}`,
     })
     navigate(`/track/${order.id}`)
   }
@@ -469,7 +469,7 @@ function PaymentChoiceModal({ order, qrUrl, tableNo, serviceType, onChoose, onCl
                 id="cart.payNow.subtitle"
                 values={{
                   location: locationLabel({ serviceType, tableNo }),
-                  id: `#${order.id.slice(-6).toUpperCase()}`,
+                  id: orderLabel(order),
                   total: order.amounts.total,
                 }}
               />

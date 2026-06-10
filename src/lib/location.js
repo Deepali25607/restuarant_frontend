@@ -18,3 +18,16 @@ export function locationNoun(serviceType) {
   if (serviceType === 'takeaway') return 'Takeaway'
   return serviceType === 'room' ? 'Room' : 'Table'
 }
+
+// The human-facing order number. New orders carry a per-day sequential
+// `orderNumber` (1, 2, 3 … resetting each day); older orders that predate it
+// fall back to a short slice of the internal id so nothing renders blank.
+export function orderNo(order) {
+  if (order?.orderNumber != null) return String(order.orderNumber)
+  return String(order?.id || '').slice(-6).toUpperCase()
+}
+
+// Same value with a leading "#", for inline display like "#12".
+export function orderLabel(order) {
+  return `#${orderNo(order)}`
+}

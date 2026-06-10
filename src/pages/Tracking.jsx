@@ -18,6 +18,7 @@ import clsx from 'clsx'
 import { toast } from 'sonner'
 import { getOrder, setOrderPaymentMethod, fetchOrgBranding } from '../lib/api'
 import { getSocket } from '../lib/socket'
+import { orderNo } from '../lib/location'
 import { useOrgStore } from '../store/useOrgStore'
 
 const STAGES = [
@@ -196,7 +197,7 @@ export default function Tracking() {
         <div className="relative flex flex-col md:flex-row md:items-end justify-between gap-3">
           <div>
             <span className="eyebrow">
-              <FormattedMessage id="tracking.eyebrow" values={{ id: order.id.slice(-6).toUpperCase() }} />
+              <FormattedMessage id="tracking.eyebrow" values={{ id: orderNo(order) }} />
             </span>
             <h1 className="section-heading mt-2">
               <FormattedMessage id={served ? 'tracking.title.served' : 'tracking.title.cooking'} />

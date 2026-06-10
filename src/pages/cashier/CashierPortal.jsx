@@ -38,7 +38,7 @@ import { openRazorpayCheckout } from '../../lib/razorpay'
 import { getSocket } from '../../lib/socket'
 import ThemeToggle from '../../components/ThemeToggle'
 import ChangePasswordModal from '../../components/ChangePasswordModal'
-import { locationLabel } from '../../lib/location'
+import { locationLabel, orderLabel, orderNo } from '../../lib/location'
 
 export default function CashierPortal() {
   const { user, token, logout } = useAuthStore()
@@ -89,7 +89,7 @@ export default function CashierPortal() {
     }
     const onClaim = (order) => {
       toast.info(`${locationLabel(order)} reports a QR payment`, {
-        description: `#${order.id.slice(-6).toUpperCase()} · ₹${order.amounts?.total} — verify & confirm to settle`,
+        description: `${orderLabel(order)} · ₹${order.amounts?.total} — verify & confirm to settle`,
         duration: 10000,
       })
       load()
@@ -255,9 +255,46 @@ function TableBillCard({ group, onOpen }) {
   )
 }
 
+// Thermal roll geometry. `pageW` is the physical roll width (mm) fed to CSS
+// @page; `width` is the printable content area (a little narrower than the
+// roll); `scale` bumps font/QR sizes on wider paper. The page *height* is not
+// fixed here — it's measured from the rendered content at print time so the
+// slip is exactly as long as the order needs (no blank tail, no overflow).
+const PAPER = {
+  '3in': { label: 'Thermal 3-Inch', pageW: 80, width: '72mm', scale: 1 },
+  '4in': { label: 'Thermal 4-Inch', pageW: 112, width: '104mm', scale: 1.3 },
+}
+
+// Print script injected into the popup: once everything (incl. the QR image)
+// has loaded, measure the content height, set an exact-fit @page, then print.
+// Converting px → mm (96px = 25.4mm) and adding a small feed margin keeps the
+// last line off the cut edge.
+function fitAndPrintScript(pageW) {
+  return `<script>window.onload=function(){
+    var h=document.documentElement.scrollHeight;
+    var mm=Math.ceil(h*25.4/96)+4;
+    var s=document.createElement('style');
+    s.appendChild(document.createTextNode('@page{size:${pageW}mm '+mm+'mm;margin:0}'));
+    document.head.appendChild(s);
+    window.print();
+  };<\/script>`
+}
+
 function BillModal({ group, rzpReady, qrUrl, onClose, onPaid, onError }) {
   const [tip, setTip] = useState(0)
   const [splits, setSplits] = useState(null)
+  // Which thermal paper the cashier's printer uses. Set once, remembered.
+  const [paper, setPaper] = useState(
+    () => (typeof localStorage !== 'undefined' && localStorage.getItem('printPaper')) || '3in',
+  )
+  const choosePaper = (p) => {
+    setPaper(p)
+    try {
+      localStorage.setItem('printPaper', p)
+    } catch {
+      /* private mode — keep the in-memory choice */
+    }
+  }
   const [loyaltyPhone, setLoyaltyPhone] = useState('')
   const [loyaltyMember, setLoyaltyMember] = useState(null)
 
@@ -353,11 +390,33 @@ function BillModal({ group, rzpReady, qrUrl, onClose, onPaid, onError }) {
           </button>
         </div>
 
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1 text-xs font-semibold text-masala-600">
+            <Printer className="h-3.5 w-3.5" /> Printer paper
+          </span>
+          <div className="inline-flex rounded-full border border-saffron-200 p-0.5">
+            {Object.entries(PAPER).map(([key, cfg]) => (
+              <button
+                key={key}
+                onClick={() => choosePaper(key)}
+                className={clsx(
+                  'px-3 py-1 rounded-full text-xs font-semibold transition',
+                  paper === key
+                    ? 'bg-saffron-500 text-white'
+                    : 'text-masala-600 hover:bg-saffron-100',
+                )}
+              >
+                {cfg.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {group.orders.map((o) => (
           <div key={o.id} className="mt-5 rounded-2xl border border-saffron-200 bg-white p-4">
             <div className="flex items-center justify-between gap-2">
               <div className="text-xs text-masala-600">
-                #{o.id.slice(-6).toUpperCase()} · {new Date(o.createdAt).toLocaleTimeString()}
+                {orderLabel(o)} · {new Date(o.createdAt).toLocaleTimeString()}
               </div>
               <div className="flex items-center gap-2">
                 <PaymentMethodBadge method={o.payment?.method} />
@@ -455,10 +514,16 @@ function BillModal({ group, rzpReady, qrUrl, onClose, onPaid, onError }) {
                 Mark cash paid
               </PayBtn>
               <button
-                onClick={() => printReceipt(o, group.tableNo, tip, qrUrl)}
+                onClick={() => printReceipt(o, group.tableNo, tip, qrUrl, paper)}
                 className="btn-ghost !py-2 !px-3"
               >
                 <Printer className="h-4 w-4" /> Print
+              </button>
+              <button
+                onClick={() => printKOT(o, group.tableNo, paper)}
+                className="btn-ghost !py-2 !px-3"
+              >
+                <Printer className="h-4 w-4" /> Print KOT
               </button>
             </div>
           </div>
@@ -552,7 +617,10 @@ function PayBtn({ icon, onClick, children }) {
   )
 }
 
-function printReceipt(o, tableNo, tip, qrUrl) {
+function printReceipt(o, tableNo, tip, qrUrl, paper = '3in') {
+  const cfg = PAPER[paper] || PAPER['3in']
+  const f = (px) => Math.round(px * cfg.scale) // scale a px value for the paper
+  const qrPx = f(150)
   const w = window.open('', '_blank')
   if (!w) return
   const rows = o.items
@@ -573,29 +641,78 @@ function printReceipt(o, tableNo, tip, qrUrl) {
        </div>`
     : ''
   w.document.write(`<html><head><title>Receipt T${tableNo}</title><style>
-    body{font-family:ui-monospace,Consolas,monospace;font-size:12px;width:280px;padding:14px;color:#111}
-    h2{font-family:'Playfair Display',serif;color:#9a3412;margin:0}
-    .sub{letter-spacing:.3em;font-size:9px;color:#7c2d12;text-transform:uppercase;text-align:center;margin-bottom:6px}
+    @page{size:${cfg.pageW}mm auto;margin:0}
+    html,body{margin:0}
+    body{font-family:ui-monospace,Consolas,monospace;font-size:${f(12)}px;width:${cfg.width};margin:0 auto;padding:${f(12)}px ${f(8)}px;color:#111}
+    h2{font-family:'Playfair Display',serif;color:#9a3412;margin:0;font-size:${f(20)}px}
+    .sub{letter-spacing:.3em;font-size:${f(9)}px;color:#7c2d12;text-transform:uppercase;text-align:center;margin-bottom:6px}
     table{width:100%;border-collapse:collapse;margin-top:10px}
     td{padding:3px 0;border-bottom:1px dashed #ddd}
-    .total{font-weight:700;font-size:14px;margin-top:8px;border-top:2px solid #000;padding-top:6px;display:flex;justify-content:space-between}
+    .total{font-weight:700;font-size:${f(14)}px;margin-top:8px;border-top:2px solid #000;padding-top:6px;display:flex;justify-content:space-between}
     .meta{margin-top:6px;color:#555}
     .qr{margin-top:14px;padding-top:10px;border-top:1px dashed #999;text-align:center}
-    .qrlabel{font-weight:700;font-size:11px;letter-spacing:.15em;color:#3730a3}
-    .qr img{width:150px;height:150px;object-fit:contain;margin:8px auto;display:block}
-    .qrhint{font-size:9px;color:#777}
+    .qrlabel{font-weight:700;font-size:${f(11)}px;letter-spacing:.15em;color:#3730a3}
+    .qr img{width:${qrPx}px;height:${qrPx}px;object-fit:contain;margin:8px auto;display:block}
+    .qrhint{font-size:${f(9)}px;color:#777}
     </style></head><body>
     <div style="text-align:center">
       <h2>Masala Story</h2>
       <div class="sub">A taste of India</div>
     </div>
-    <div class="meta">${o.serviceType === 'room' ? 'Room' : 'Table'}: <b>${locationLabel({ serviceType: o.serviceType, tableNo })}</b><br/>Order: #${o.id.slice(-6).toUpperCase()}<br/>${new Date().toLocaleString()}</div>
+    <div class="meta">${o.serviceType === 'room' ? 'Room' : 'Table'}: <b>${locationLabel({ serviceType: o.serviceType, tableNo })}</b><br/>Order: #${escape(orderNo(o))}<br/>${new Date().toLocaleString()}</div>
     <table>${rows}</table>
     <div class="meta" style="margin-top:8px">Subtotal ₹${o.amounts.subtotal} · GST ₹${o.amounts.tax}${tip ? ` · Tip ₹${tip}` : ''}</div>
     <div class="total"><span>TOTAL</span><span>₹${total}</span></div>
     ${qrBlock}
     <div style="text-align:center;margin-top:16px;color:#888">Thank you · Phir milenge!</div>
-    <script>window.onload=()=>window.print()</script>
+    ${fitAndPrintScript(cfg.pageW)}
+    </body></html>`)
+  w.document.close()
+}
+
+// Kitchen Order Ticket — a price-free copy for the kitchen. Shows only the
+// serial number, item name and quantity (plus any cooking instructions), so
+// the line cooks see what to make without any billing noise.
+function printKOT(o, tableNo, paper = '3in') {
+  const cfg = PAPER[paper] || PAPER['3in']
+  const f = (px) => Math.round(px * cfg.scale) // scale a px value for the paper
+  const w = window.open('', '_blank')
+  if (!w) return
+  const rows = o.items
+    .map(
+      (it, i) =>
+        `<tr><td class="sno">${i + 1}</td><td class="item">${escape(it.name)}${
+          it.instructions
+            ? `<div class="note">✎ ${escape(it.instructions)}</div>`
+            : ''
+        }</td><td class="qty">${it.qty}</td></tr>`,
+    )
+    .join('')
+  const loc = locationLabel({ serviceType: o.serviceType, tableNo })
+  w.document.write(`<html><head><title>KOT ${escape(loc)}</title><style>
+    @page{size:${cfg.pageW}mm auto;margin:0}
+    html,body{margin:0}
+    body{font-family:ui-monospace,Consolas,monospace;font-size:${f(13)}px;width:${cfg.width};margin:0 auto;padding:${f(12)}px ${f(8)}px;color:#111}
+    h2{font-family:'Playfair Display',serif;color:#9a3412;margin:0;text-align:center;font-size:${f(22)}px}
+    .sub{letter-spacing:.3em;font-size:${f(10)}px;color:#7c2d12;text-transform:uppercase;text-align:center;margin:4px 0 8px;font-weight:700}
+    .meta{margin-top:6px;color:#333;font-size:${f(12)}px}
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th{text-align:left;font-size:${f(10)}px;letter-spacing:.1em;text-transform:uppercase;border-bottom:2px solid #000;padding:4px 0}
+    td{padding:6px 0;border-bottom:1px dashed #ccc;vertical-align:top}
+    .sno{width:${f(28)}px;font-weight:700}
+    .qty{text-align:right;width:${f(36)}px;font-weight:700;font-size:${f(15)}px}
+    .item{font-weight:600}
+    .note{font-weight:400;font-size:${f(11)}px;color:#b91c1c;margin-top:2px}
+    th.qty{text-align:right}
+    </style></head><body>
+    <h2>K.O.T</h2>
+    <div class="sub">Kitchen Order Ticket</div>
+    <div class="meta">${o.serviceType === 'room' ? 'Room' : o.serviceType === 'takeaway' ? 'Takeaway' : 'Table'}: <b>${escape(loc)}</b><br/>Order: #${escape(orderNo(o))}<br/>${new Date().toLocaleString()}</div>
+    <table>
+      <thead><tr><th class="sno">#</th><th>Item</th><th class="qty">Qty</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    ${fitAndPrintScript(cfg.pageW)}
     </body></html>`)
   w.document.close()
 }
