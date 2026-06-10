@@ -153,9 +153,16 @@ export default function AdminLogin() {
             <div>cashier@org-masala.com · <span className="font-mono">cashier@123</span></div>
           </div>
 
+          <div className="mt-6 pt-5 border-t border-saffron-200 text-center">
+            <span className="text-sm text-masala-700">New here? </span>
+            <Link to="/signup" className="text-sm font-semibold text-saffron-600 hover:text-saffron-700">
+              Create your organization →
+            </Link>
+          </div>
+
           <Link
             to="/"
-            className="block text-center text-xs text-masala-600 mt-5 hover:text-masala-900"
+            className="block text-center text-xs text-masala-600 mt-4 hover:text-masala-900"
           >
             ← Back to customer experience
           </Link>

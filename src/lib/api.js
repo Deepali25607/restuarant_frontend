@@ -108,6 +108,11 @@ export const loginRequest = (email, password) =>
 export const me = () => api.get('/auth/me').then((r) => r.data)
 export const changePassword = (payload) =>
   api.post('/auth/change-password', payload).then((r) => r.data)
+// Public self-service signup: browse plans, create an org, confirm payment.
+export const fetchPublicPlans = () => api.get('/public/plans').then((r) => r.data)
+export const signupRequest = (payload) => api.post('/public/signup', payload).then((r) => r.data)
+export const verifySignup = (payload) =>
+  api.post('/public/signup/verify', payload).then((r) => r.data)
 export const adminOverview = () => api.get('/admin/overview').then((r) => r.data)
 
 export const fetchAdminOrders = (status) =>

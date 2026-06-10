@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { FormattedMessage, useIntl } from 'react-intl'
 import clsx from 'clsx'
-import { QrCode, ArrowRight, Sparkles, Flame, Utensils, AlertTriangle, Loader2, Table2, BedDouble, ShoppingBag } from 'lucide-react'
+import { QrCode, ArrowRight, Sparkles, Flame, Utensils, AlertTriangle, Loader2, Table2, BedDouble, ShoppingBag, LogIn, Store } from 'lucide-react'
 import { useSessionStore } from '../store/useSessionStore'
 import { useOrgStore } from '../store/useOrgStore'
 import { fetchLocation } from '../lib/api'
@@ -157,6 +157,22 @@ export default function Welcome() {
             </div>
           </button>
           <div className="flex items-center gap-2">
+            {/* Restaurant-owner entry points — sign in or create a new org. */}
+            <Link
+              to="/admin/login"
+              className="inline-flex items-center gap-1.5 rounded-full border border-saffron-200 dark:border-masala-700 bg-white/70 dark:bg-masala-800/60 px-3 py-1.5 text-sm font-semibold text-masala-700 dark:text-saffron-200 hover:bg-saffron-50 dark:hover:bg-masala-700 transition"
+            >
+              <LogIn className="h-4 w-4" />
+              <span className="hidden sm:inline">Sign in</span>
+            </Link>
+            <Link
+              to="/signup"
+              title="Create your organization"
+              className="inline-flex items-center gap-1.5 rounded-full bg-curry-gradient text-white px-3.5 py-1.5 text-sm font-semibold shadow-warm hover:shadow-plate transition"
+            >
+              <Store className="h-4 w-4" />
+              <span className="hidden sm:inline">Create your organization</span>
+            </Link>
             <LanguagePicker variant="pill" />
             <ThemeToggle />
           </div>

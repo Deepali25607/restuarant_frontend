@@ -13,6 +13,8 @@ import {
   Lock,
   RotateCcw,
   Sparkles,
+  Power,
+  PowerOff,
 } from 'lucide-react'
 import clsx from 'clsx'
 import {
@@ -63,11 +65,23 @@ export default function AdminStaff() {
       .catch((e) => setError(e?.response?.data?.message || e.message))
   }, [canGrantPerms, catalog])
 
+  const toggleActive = async (u) => {
+    if (u.id === me?.id) return
+    setError('')
+    try {
+      const updated = await updateStaff(u.id, { active: u.active === false })
+      setStaff((s) => s.map((x) => (x.id === updated.id ? updated : x)))
+    } catch (e) {
+      setError(e?.response?.data?.message || e.message)
+    }
+  }
+
   const save = async () => {
     setError('')
     try {
       if (editing.id) {
         const patch = { name: editing.name, role: editing.role }
+        if (editing.email && editing.email !== editing._origEmail) patch.email = editing.email
         if (editing.password) patch.password = editing.password
         const updated = await updateStaff(editing.id, patch)
         setStaff((s) => s.map((u) => (u.id === updated.id ? updated : u)))
@@ -142,14 +156,21 @@ export default function AdminStaff() {
             </thead>
             <tbody className="divide-y divide-saffron-100 dark:divide-masala-700">
               {staff.map((u) => (
-                <tr key={u.id} className="hover:bg-saffron-50/40 dark:hover:bg-masala-700/30">
+                <tr key={u.id} className={clsx('hover:bg-saffron-50/40 dark:hover:bg-masala-700/30', u.active === false && 'opacity-60')}>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-full bg-curry-gradient text-white font-bold flex items-center justify-center">
+                      <div className={clsx('h-9 w-9 rounded-full text-white font-bold flex items-center justify-center', u.active === false ? 'bg-masala-400' : 'bg-curry-gradient')}>
                         {u.name?.[0]?.toUpperCase()}
                       </div>
                       <div>
-                        <div className="font-semibold" style={{ color: 'var(--text)' }}>{u.name}</div>
+                        <div className="font-semibold flex items-center gap-2" style={{ color: 'var(--text)' }}>
+                          {u.name}
+                          {u.active === false && (
+                            <span className="text-[10px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-masala-200 text-masala-700 dark:bg-masala-700 dark:text-masala-200">
+                              Inactive
+                            </span>
+                          )}
+                        </div>
                         {u.id === me?.id && (
                           <div className="text-[10px] text-saffron-700 dark:text-saffron-300 uppercase tracking-widest">
                             You
@@ -195,10 +216,24 @@ export default function AdminStaff() {
                       {canManageStaff && (
                         <>
                           <button
-                            onClick={() => setEditing({ ...u, password: '' })}
+                            onClick={() => setEditing({ ...u, _origEmail: u.email, password: '' })}
                             className="btn-ghost !py-1.5 !px-3"
                           >
                             <Pencil className="h-3.5 w-3.5" /> Edit
+                          </button>
+                          <button
+                            onClick={() => toggleActive(u)}
+                            disabled={u.id === me?.id}
+                            title={u.active === false ? 'Reactivate account' : 'Deactivate account'}
+                            className={clsx(
+                              'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold border disabled:opacity-40 disabled:hover:bg-transparent',
+                              u.active === false
+                                ? 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                                : 'border-amber-200 text-amber-700 hover:bg-amber-50',
+                            )}
+                          >
+                            {u.active === false ? <Power className="h-3.5 w-3.5" /> : <PowerOff className="h-3.5 w-3.5" />}
+                            {u.active === false ? 'Activate' : 'Deactivate'}
                           </button>
                           <button
                             onClick={() => remove(u)}
@@ -254,7 +289,6 @@ export default function AdminStaff() {
                   type="email"
                   value={editing.email}
                   onChange={(v) => setEditing({ ...editing, email: v })}
-                  disabled={Boolean(editing.id)}
                 />
                 <div>
                   <span className="text-xs font-semibold uppercase tracking-widest text-masala-700 dark:text-saffron-300">

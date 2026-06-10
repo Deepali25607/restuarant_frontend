@@ -10,6 +10,7 @@ import Layout from './components/Layout.jsx'
 import WhitelabelHead from './components/WhitelabelHead.jsx'
 
 // Operations consoles are lazy-loaded so customers don't pay for them.
+const Signup = lazy(() => import('./pages/Signup.jsx'))
 const AdminLogin = lazy(() => import('./pages/admin/AdminLogin.jsx'))
 const AdminLayout = lazy(() => import('./components/admin/AdminLayout.jsx'))
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard.jsx'))
@@ -54,6 +55,15 @@ export default function App() {
       <Route path="/order/:orgSlug/room/:roomNo" element={<OrderEntry serviceType="room" />} />
       <Route path="/order/:orgSlug/:tableNo" element={<OrderEntry serviceType="table" />} />
 
+      <Route
+        path="/signup"
+        element={
+          <Suspense fallback={<ConsoleFallback />}>
+            <Signup />
+          </Suspense>
+        }
+      />
+      <Route path="/pricing" element={<Navigate to="/signup" replace />} />
       <Route
         path="/admin/login"
         element={

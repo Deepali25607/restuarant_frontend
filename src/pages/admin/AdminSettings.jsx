@@ -14,6 +14,12 @@ export default function AdminSettings() {
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
+  // Which channels the plan/platform allows. Restricted channels are hidden
+  // below (and the server refuses to enable them). Defaults cover older
+  // settings payloads that predate the field.
+  const allowed = settings?.allowedChannels || { table: true, room: false, takeaway: false }
+  const allChannelsAllowed = allowed.table && allowed.room && allowed.takeaway
+
   useEffect(() => {
     fetchOrgSettings()
       .then((s) => {
@@ -37,12 +43,13 @@ export default function AdminSettings() {
     setSaving(true)
     setError('')
     try {
-      const updated = await updateOrgSettings({
-        paymentQrUrl,
-        tableOrderingEnabled: tableEnabled,
-        roomOrderingEnabled: roomEnabled,
-        takeawayOrderingEnabled: takeawayEnabled,
-      })
+      // Only send toggles for allowed channels — never try to enable a
+      // restricted one (the server would reject it).
+      const payload = { paymentQrUrl }
+      if (allowed.table) payload.tableOrderingEnabled = tableEnabled
+      if (allowed.room) payload.roomOrderingEnabled = roomEnabled
+      if (allowed.takeaway) payload.takeawayOrderingEnabled = takeawayEnabled
+      const updated = await updateOrgSettings(payload)
       setSettings(updated)
       setPaymentQrUrl(updated.paymentQrUrl || '')
       setTableEnabled(updated.tableOrderingEnabled !== false)
@@ -123,28 +130,42 @@ export default function AdminSettings() {
               Choose how guests can order. Turn a channel off to hide it from customers.
             </p>
             <div className="mt-4 space-y-3">
-              <ToggleRow
-                icon={Table2}
-                label="Dine-in (tables)"
-                desc="Guests scan a table QR to order at the table."
-                checked={tableEnabled}
-                onChange={setTableEnabled}
-              />
-              <ToggleRow
-                icon={BedDouble}
-                label="Room service (rooms)"
-                desc="Guests scan a room QR to order to their room."
-                checked={roomEnabled}
-                onChange={setRoomEnabled}
-              />
-              <ToggleRow
-                icon={ShoppingBag}
-                label="Takeaway"
-                desc="Guests order for pickup — no table or room needed."
-                checked={takeawayEnabled}
-                onChange={setTakeawayEnabled}
-              />
+              {allowed.table && (
+                <ToggleRow
+                  icon={Table2}
+                  label="Dine-in (tables)"
+                  desc="Guests scan a table QR to order at the table."
+                  checked={tableEnabled}
+                  onChange={setTableEnabled}
+                />
+              )}
+              {allowed.room && (
+                <ToggleRow
+                  icon={BedDouble}
+                  label="Room service (rooms)"
+                  desc="Guests scan a room QR to order to their room."
+                  checked={roomEnabled}
+                  onChange={setRoomEnabled}
+                />
+              )}
+              {allowed.takeaway && (
+                <ToggleRow
+                  icon={ShoppingBag}
+                  label="Takeaway"
+                  desc="Guests order for pickup — no table or room needed."
+                  checked={takeawayEnabled}
+                  onChange={setTakeawayEnabled}
+                />
+              )}
             </div>
+            {!allChannelsAllowed && (
+              <p className="mt-3 text-xs text-masala-500 dark:text-saffron-200/60">
+                Some ordering channels aren't included in your current plan. Contact your
+                provider to enable {[!allowed.room && 'Room service', !allowed.takeaway && 'Takeaway']
+                  .filter(Boolean)
+                  .join(' & ') || 'more channels'}.
+              </p>
+            )}
           </div>
 
           <div className="mt-6 flex items-center gap-3">

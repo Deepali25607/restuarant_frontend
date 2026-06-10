@@ -837,10 +837,13 @@ function SubscriptionDialog({ org, onClose, onOrgChanged }) {
   const [maxDishesDraft, setMaxDishesDraft] = useState(
     org.maxDishes == null ? '' : String(org.maxDishes),
   )
-  // Ordering-channel toggles the platform admin can flip for this tenant.
-  const [tableEnabledDraft, setTableEnabledDraft] = useState(org.tableOrderingEnabled !== false)
-  const [roomEnabledDraft, setRoomEnabledDraft] = useState(Boolean(org.roomOrderingEnabled))
-  const [takeawayEnabledDraft, setTakeawayEnabledDraft] = useState(Boolean(org.takeawayOrderingEnabled))
+  // Channel entitlements the platform admin grants/revokes for this tenant.
+  // Initial values come from the effective allowed state (per-tenant override
+  // ?? plan default) the API returns as org.allowedChannels.
+  const allowedNow = org.allowedChannels || { table: true, room: false, takeaway: false }
+  const [tableAllowedDraft, setTableAllowedDraft] = useState(Boolean(allowedNow.table))
+  const [roomAllowedDraft, setRoomAllowedDraft] = useState(Boolean(allowedNow.room))
+  const [takeawayAllowedDraft, setTakeawayAllowedDraft] = useState(Boolean(allowedNow.takeaway))
 
   useEffect(() => {
     let alive = true
@@ -905,18 +908,18 @@ function SubscriptionDialog({ org, onClose, onOrgChanged }) {
   })
 
   const channelsChanged =
-    tableEnabledDraft !== (org.tableOrderingEnabled !== false) ||
-    roomEnabledDraft !== Boolean(org.roomOrderingEnabled) ||
-    takeawayEnabledDraft !== Boolean(org.takeawayOrderingEnabled)
+    tableAllowedDraft !== Boolean(allowedNow.table) ||
+    roomAllowedDraft !== Boolean(allowedNow.room) ||
+    takeawayAllowedDraft !== Boolean(allowedNow.takeaway)
 
   const saveChannels = () => guard(async () => {
     const updated = await updateOrganization(org.id, {
-      tableOrderingEnabled: tableEnabledDraft,
-      roomOrderingEnabled: roomEnabledDraft,
-      takeawayOrderingEnabled: takeawayEnabledDraft,
+      tableOrderingAllowed: tableAllowedDraft,
+      roomOrderingAllowed: roomAllowedDraft,
+      takeawayOrderingAllowed: takeawayAllowedDraft,
     })
     onOrgChanged(updated)
-    toast.success('Ordering channels updated')
+    toast.success('Channel access updated')
   })
 
   const extend = ({ markPaid, recordInvoice }) => guard(async () => {
@@ -1114,29 +1117,30 @@ function SubscriptionDialog({ org, onClose, onOrgChanged }) {
         <div className="px-6 pb-4">
           <div className="rounded-2xl border border-saffron-200/70 dark:border-masala-700 p-4">
             <div className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
-              Ordering channels
+              Channel access (plan entitlements)
             </div>
             <div className="text-[10px] mt-0.5 opacity-70">
-              Enable or disable how guests of this restaurant can order.
+              Which ordering channels this restaurant is allowed to offer. A channel turned
+              off here is hidden from the restaurant's own settings and can't be used.
             </div>
             <div className="mt-3 space-y-2">
               <ChannelToggle
                 label="Dine-in (tables)"
-                desc="Guests scan a table QR to order at the table."
-                checked={tableEnabledDraft}
-                onChange={setTableEnabledDraft}
+                desc="Allow the restaurant to offer table ordering."
+                checked={tableAllowedDraft}
+                onChange={setTableAllowedDraft}
               />
               <ChannelToggle
                 label="Room service (rooms)"
-                desc="Guests scan a room QR to order to their room."
-                checked={roomEnabledDraft}
-                onChange={setRoomEnabledDraft}
+                desc="Allow the restaurant to offer room-service ordering."
+                checked={roomAllowedDraft}
+                onChange={setRoomAllowedDraft}
               />
               <ChannelToggle
                 label="Takeaway"
-                desc="Guests order for pickup — no table or room needed."
-                checked={takeawayEnabledDraft}
-                onChange={setTakeawayEnabledDraft}
+                desc="Allow the restaurant to offer takeaway ordering."
+                checked={takeawayAllowedDraft}
+                onChange={setTakeawayAllowedDraft}
               />
             </div>
             <div className="mt-3 flex justify-end">
@@ -1145,7 +1149,7 @@ function SubscriptionDialog({ org, onClose, onOrgChanged }) {
                 onClick={saveChannels}
                 className="btn-primary !py-2"
               >
-                <Save className="h-3.5 w-3.5" /> Save channels
+                <Save className="h-3.5 w-3.5" /> Save access
               </button>
             </div>
           </div>
