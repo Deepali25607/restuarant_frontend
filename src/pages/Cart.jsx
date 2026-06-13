@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { FormattedMessage, useIntl } from 'react-intl'
-import { Minus, Plus, Trash2, MessageSquare, ShoppingBag, Wallet, CreditCard, BadgeIndianRupee, Zap, Sparkles, Phone, Check, QrCode, Banknote, X, CheckCircle2 } from 'lucide-react'
+import { Minus, Plus, Trash2, MessageSquare, ShoppingBag, Wallet, CreditCard, BadgeIndianRupee, Zap, Sparkles, Phone, Check, QrCode, Banknote, X, CheckCircle2, Clock } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   useSessionStore,
@@ -47,6 +47,23 @@ export default function Cart() {
   // choice in the post-order popup. null when the popup is closed.
   const [pendingOrder, setPendingOrder] = useState(null)
   const paymentQrUrl = branding?.paymentQrUrl || ''
+
+  // Which checkout methods the restaurant offers (server-driven). Defaults keep
+  // the classic UPI/Card/Cash set for branding payloads that predate the field.
+  const methods = branding?.paymentMethods || { cash: true, upi: true, card: true, qr: false, later: false }
+  const payChoices = [
+    methods.upi && { key: 'upi', icon: <BadgeIndianRupee className="h-4 w-4" />, label: <FormattedMessage id="cart.payment.upi" /> },
+    methods.card && { key: 'card', icon: <CreditCard className="h-4 w-4" />, label: <FormattedMessage id="cart.payment.card" /> },
+    methods.cash && { key: 'counter', icon: <Wallet className="h-4 w-4" />, label: <FormattedMessage id="cart.payment.counter" /> },
+    methods.later && { key: 'later', icon: <Clock className="h-4 w-4" />, label: <FormattedMessage id="cart.payment.later" /> },
+  ].filter(Boolean)
+  const availableKeys = payChoices.map((c) => c.key).join(',')
+
+  // Keep the selected method valid as the available set loads/changes.
+  useEffect(() => {
+    const keys = availableKeys ? availableKeys.split(',') : []
+    if (keys.length && !keys.includes(payment)) setPayment(keys[0])
+  }, [availableKeys, payment])
 
   // Loyalty
   const [loyaltyPhone, setLoyaltyPhone] = useState('')
@@ -139,6 +156,17 @@ export default function Cart() {
     try {
       const order = await placeOrderNow()
 
+      // Pay Later: the order is already on its way to the kitchen and stays
+      // "pending payment". No payment step now — straight to tracking.
+      if (payment === 'later') {
+        clearCart()
+        toast.success(intl.formatMessage({ id: 'cart.payLater.toast' }), {
+          description: orderLabel(order),
+        })
+        navigate(`/track/${order.id}`)
+        return
+      }
+
       // Razorpay handles UPI/Card inline when it's configured — unchanged.
       if ((payment === 'upi' || payment === 'card') && rzpReady) {
         const rzpOrder = await createRazorpayOrder(order.id)
@@ -194,7 +222,8 @@ export default function Cart() {
       {pendingOrder && (
         <PaymentChoiceModal
           order={pendingOrder}
-          qrUrl={paymentQrUrl}
+          qrUrl={methods.qr ? paymentQrUrl : ''}
+          showCash={methods.cash}
           tableNo={tableNo}
           serviceType={serviceType}
           onClose={() => finishOrder(pendingOrder)}
@@ -354,26 +383,22 @@ export default function Cart() {
             <div className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
               <FormattedMessage id="cart.payment" />
             </div>
-            <div className="mt-3 grid grid-cols-3 gap-2">
-              <PayOption
-                active={payment === 'upi'}
-                onClick={() => setPayment('upi')}
-                icon={<BadgeIndianRupee className="h-4 w-4" />}
-                label={<FormattedMessage id="cart.payment.upi" />}
-              />
-              <PayOption
-                active={payment === 'card'}
-                onClick={() => setPayment('card')}
-                icon={<CreditCard className="h-4 w-4" />}
-                label={<FormattedMessage id="cart.payment.card" />}
-              />
-              <PayOption
-                active={payment === 'counter'}
-                onClick={() => setPayment('counter')}
-                icon={<Wallet className="h-4 w-4" />}
-                label={<FormattedMessage id="cart.payment.counter" />}
-              />
+            <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {payChoices.map((c) => (
+                <PayOption
+                  key={c.key}
+                  active={payment === c.key}
+                  onClick={() => setPayment(c.key)}
+                  icon={c.icon}
+                  label={c.label}
+                />
+              ))}
             </div>
+            {payment === 'later' && (
+              <p className="mt-2 text-[11px] inline-flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
+                <Clock className="h-3 w-3" /> <FormattedMessage id="cart.payment.laterHint" />
+              </p>
+            )}
           </div>
 
           {error && (
@@ -434,7 +459,7 @@ function PayOption({ active, onClick, icon, label }) {
   )
 }
 
-function PaymentChoiceModal({ order, qrUrl, tableNo, serviceType, onChoose, onClose }) {
+function PaymentChoiceModal({ order, qrUrl, showCash = true, tableNo, serviceType, onChoose, onClose }) {
   const [busy, setBusy] = useState('')
   const choose = async (method) => {
     if (busy) return
@@ -503,26 +528,28 @@ function PaymentChoiceModal({ order, qrUrl, tableNo, serviceType, onChoose, onCl
           </div>
         )}
 
-        <button
-          onClick={() => choose('counter')}
-          disabled={Boolean(busy)}
-          className={clsx(
-            'mt-3 w-full rounded-2xl border p-4 text-left flex items-center gap-3 transition disabled:opacity-60',
-            'bg-white dark:bg-masala-800 border-saffron-200 dark:border-masala-700 hover:bg-saffron-50 dark:hover:bg-masala-700',
-          )}
-        >
-          <div className="h-10 w-10 rounded-full bg-curry-gradient flex items-center justify-center shadow-warm shrink-0">
-            <Banknote className="h-5 w-5 text-white" />
-          </div>
-          <div className="leading-tight">
-            <div className="font-display text-lg">
-              <FormattedMessage id="cart.payNow.cash" />
+        {showCash && (
+          <button
+            onClick={() => choose('counter')}
+            disabled={Boolean(busy)}
+            className={clsx(
+              'mt-3 w-full rounded-2xl border p-4 text-left flex items-center gap-3 transition disabled:opacity-60',
+              'bg-white dark:bg-masala-800 border-saffron-200 dark:border-masala-700 hover:bg-saffron-50 dark:hover:bg-masala-700',
+            )}
+          >
+            <div className="h-10 w-10 rounded-full bg-curry-gradient flex items-center justify-center shadow-warm shrink-0">
+              <Banknote className="h-5 w-5 text-white" />
             </div>
-            <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              <FormattedMessage id="cart.payNow.cashHint" />
+            <div className="leading-tight">
+              <div className="font-display text-lg">
+                <FormattedMessage id="cart.payNow.cash" />
+              </div>
+              <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                <FormattedMessage id="cart.payNow.cashHint" />
+              </div>
             </div>
-          </div>
-        </button>
+          </button>
+        )}
 
         <p className="text-[11px] mt-4 text-center" style={{ color: 'var(--text-muted)' }}>
           <FormattedMessage id="cart.payNow.cashierNote" />

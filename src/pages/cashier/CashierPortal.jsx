@@ -20,6 +20,7 @@ import {
   Zap,
   Sparkles,
   Phone,
+  Clock,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { toast } from 'sonner'
@@ -27,6 +28,7 @@ import { useAuthStore } from '../../store/useAuthStore'
 import {
   fetchBillingTables,
   markOrderPaid,
+  markOrderPayLater,
   splitBill,
   paymentStatus,
   createRazorpayOrder,
@@ -201,6 +203,10 @@ export default function CashierPortal() {
               toast.success(`${locationLabel(order)} paid · ₹${order.amounts.total}`)
               setActive(null)
             }}
+            onPayLater={(order) => {
+              toast.success(`${locationLabel(order)} sent to kitchen · bill kept open (₹${order.amounts.total})`)
+              setActive(null)
+            }}
             onError={(msg) => toast.error(msg)}
           />
         )}
@@ -280,7 +286,7 @@ function fitAndPrintScript(pageW) {
   };<\/script>`
 }
 
-function BillModal({ group, rzpReady, qrUrl, onClose, onPaid, onError }) {
+function BillModal({ group, rzpReady, qrUrl, onClose, onPaid, onPayLater, onError }) {
   const [tip, setTip] = useState(0)
   const [splits, setSplits] = useState(null)
   // Which thermal paper the cashier's printer uses. Set once, remembered.
@@ -332,6 +338,16 @@ function BillModal({ group, rzpReady, qrUrl, onClose, onPaid, onError }) {
         loyaltyPhone: loyaltyPhone ? loyaltyPhone.replace(/\D+/g, '').slice(-10) : undefined,
       })
       onPaid(updated)
+    } catch (e) {
+      onError(e?.response?.data?.message || e.message)
+    }
+  }
+
+  // Defer payment: send the order to the kitchen now, leave the bill open.
+  const sendToKitchen = async (orderId) => {
+    try {
+      const updated = await markOrderPayLater(orderId)
+      onPayLater(updated)
     } catch (e) {
       onError(e?.response?.data?.message || e.message)
     }
@@ -419,6 +435,11 @@ function BillModal({ group, rzpReady, qrUrl, onClose, onPaid, onError }) {
                 {orderLabel(o)} · {new Date(o.createdAt).toLocaleTimeString()}
               </div>
               <div className="flex items-center gap-2">
+                {o.payment?.payLater && o.payment?.status !== 'paid' && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                    <Clock className="h-3 w-3" /> Pay later
+                  </span>
+                )}
                 <PaymentMethodBadge method={o.payment?.method} />
                 <div className="text-xs font-bold uppercase tracking-widest text-saffron-700">
                   {o.status}
@@ -513,6 +534,23 @@ function BillModal({ group, rzpReady, qrUrl, onClose, onPaid, onError }) {
               <PayBtn icon={<Wallet className="h-4 w-4" />} onClick={() => pay(o.id, 'counter')}>
                 Mark cash paid
               </PayBtn>
+              <button
+                onClick={() => !o.payment?.payLater && sendToKitchen(o.id)}
+                disabled={o.payment?.payLater}
+                title={
+                  o.payment?.payLater
+                    ? 'Already sent to the kitchen — bill stays open until paid'
+                    : 'Send to the kitchen now, settle the bill later'
+                }
+                className={clsx(
+                  'inline-flex items-center gap-1.5 rounded-full border border-amber-300 !py-2 !px-3 text-xs font-semibold transition',
+                  o.payment?.payLater
+                    ? 'bg-amber-100 text-amber-700 cursor-default'
+                    : 'bg-amber-50 text-amber-700 hover:bg-amber-100',
+                )}
+              >
+                <Clock className="h-4 w-4" /> {o.payment?.payLater ? 'Sent to kitchen' : 'Pay Later'}
+              </button>
               <button
                 onClick={() => printReceipt(o, group.tableNo, tip, qrUrl, paper)}
                 className="btn-ghost !py-2 !px-3"

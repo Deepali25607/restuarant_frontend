@@ -182,6 +182,8 @@ export const fetchBillingTables = () =>
   api.get('/admin/billing/tables').then((r) => r.data)
 export const markOrderPaid = (id, payload) =>
   api.post(`/admin/orders/${id}/pay`, payload).then((r) => r.data)
+export const markOrderPayLater = (id) =>
+  api.post(`/admin/orders/${id}/pay-later`).then((r) => r.data)
 export const splitBill = (id, parts) =>
   api.post(`/admin/orders/${id}/split`, { parts }).then((r) => r.data)
 

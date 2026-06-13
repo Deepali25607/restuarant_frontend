@@ -93,6 +93,14 @@ function PaymentStatusPanel({ payment }) {
       </div>
     )
   }
+  if (payment?.payLater) {
+    return (
+      <div className="mt-4 rounded-2xl border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-3 py-2.5 flex items-center gap-2 text-sm text-amber-800 dark:text-amber-200">
+        <Clock className="h-4 w-4 shrink-0" />
+        <FormattedMessage id="tracking.pay.later" />
+      </div>
+    )
+  }
   return (
     <div className="text-xs mt-3" style={{ color: 'var(--text-muted)' }}>
       <FormattedMessage id="tracking.payment" />: {(payment?.method || '').toUpperCase()} ·{' '}

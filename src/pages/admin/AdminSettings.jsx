@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { QrCode, Upload, Loader2, Save, Trash2, Image as ImageIcon, Wallet, Table2, BedDouble, ShoppingBag } from 'lucide-react'
+import { QrCode, Upload, Loader2, Save, Trash2, Image as ImageIcon, Wallet, Table2, BedDouble, ShoppingBag, BadgeIndianRupee, CreditCard, Clock } from 'lucide-react'
 import clsx from 'clsx'
 import { toast } from 'sonner'
 import { fetchOrgSettings, updateOrgSettings, uploadImage } from '../../lib/api'
@@ -11,6 +11,12 @@ export default function AdminSettings() {
   const [tableEnabled, setTableEnabled] = useState(true)
   const [roomEnabled, setRoomEnabled] = useState(false)
   const [takeawayEnabled, setTakeawayEnabled] = useState(false)
+  // Payment-method toggles.
+  const [payCash, setPayCash] = useState(true)
+  const [payUpi, setPayUpi] = useState(true)
+  const [payCard, setPayCard] = useState(true)
+  const [payQr, setPayQr] = useState(true)
+  const [payLater, setPayLater] = useState(false)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -28,6 +34,11 @@ export default function AdminSettings() {
         setTableEnabled(s.tableOrderingEnabled !== false)
         setRoomEnabled(Boolean(s.roomOrderingEnabled))
         setTakeawayEnabled(Boolean(s.takeawayOrderingEnabled))
+        setPayCash(s.payCashEnabled !== false)
+        setPayUpi(s.payUpiEnabled !== false)
+        setPayCard(s.payCardEnabled !== false)
+        setPayQr(s.payQrEnabled !== false)
+        setPayLater(Boolean(s.payLaterEnabled))
       })
       .catch((e) => setError(e?.response?.data?.message || e.message))
   }, [])
@@ -37,7 +48,12 @@ export default function AdminSettings() {
     (paymentQrUrl !== (settings.paymentQrUrl || '') ||
       tableEnabled !== (settings.tableOrderingEnabled !== false) ||
       roomEnabled !== Boolean(settings.roomOrderingEnabled) ||
-      takeawayEnabled !== Boolean(settings.takeawayOrderingEnabled))
+      takeawayEnabled !== Boolean(settings.takeawayOrderingEnabled) ||
+      payCash !== (settings.payCashEnabled !== false) ||
+      payUpi !== (settings.payUpiEnabled !== false) ||
+      payCard !== (settings.payCardEnabled !== false) ||
+      payQr !== (settings.payQrEnabled !== false) ||
+      payLater !== Boolean(settings.payLaterEnabled))
 
   const save = async () => {
     setSaving(true)
@@ -45,7 +61,14 @@ export default function AdminSettings() {
     try {
       // Only send toggles for allowed channels — never try to enable a
       // restricted one (the server would reject it).
-      const payload = { paymentQrUrl }
+      const payload = {
+        paymentQrUrl,
+        payCashEnabled: payCash,
+        payUpiEnabled: payUpi,
+        payCardEnabled: payCard,
+        payQrEnabled: payQr,
+        payLaterEnabled: payLater,
+      }
       if (allowed.table) payload.tableOrderingEnabled = tableEnabled
       if (allowed.room) payload.roomOrderingEnabled = roomEnabled
       if (allowed.takeaway) payload.takeawayOrderingEnabled = takeawayEnabled
@@ -55,6 +78,11 @@ export default function AdminSettings() {
       setTableEnabled(updated.tableOrderingEnabled !== false)
       setRoomEnabled(Boolean(updated.roomOrderingEnabled))
       setTakeawayEnabled(Boolean(updated.takeawayOrderingEnabled))
+      setPayCash(updated.payCashEnabled !== false)
+      setPayUpi(updated.payUpiEnabled !== false)
+      setPayCard(updated.payCardEnabled !== false)
+      setPayQr(updated.payQrEnabled !== false)
+      setPayLater(Boolean(updated.payLaterEnabled))
       toast.success('Settings saved')
     } catch (e) {
       const msg = e?.response?.data?.message || e.message
@@ -124,6 +152,57 @@ export default function AdminSettings() {
 
           <div className="mt-8 pt-6 border-t border-saffron-200/70 dark:border-masala-700">
             <div className="flex items-center gap-2 text-sm font-semibold text-masala-800 dark:text-saffron-100">
+              <Wallet className="h-4 w-4 text-saffron-600" /> Payment methods
+            </div>
+            <p className="mt-1 text-xs text-masala-600 dark:text-saffron-200/70">
+              Choose which payment options guests see at checkout. Turn one off to hide it.
+            </p>
+            <div className="mt-4 space-y-3">
+              <ToggleRow
+                icon={BadgeIndianRupee}
+                label="UPI"
+                desc="Pay by UPI (online via Razorpay when configured)."
+                checked={payUpi}
+                onChange={setPayUpi}
+              />
+              <ToggleRow
+                icon={CreditCard}
+                label="Card"
+                desc="Pay by debit/credit card (online via Razorpay when configured)."
+                checked={payCard}
+                onChange={setPayCard}
+              />
+              <ToggleRow
+                icon={Wallet}
+                label="Cash at counter"
+                desc="Guest pays cash; the cashier confirms it at the desk."
+                checked={payCash}
+                onChange={setPayCash}
+              />
+              <ToggleRow
+                icon={QrCode}
+                label="Scan QR to pay"
+                desc={
+                  paymentQrUrl
+                    ? 'Show the uploaded QR in the post-order popup.'
+                    : 'Upload a payment QR above to use this option.'
+                }
+                checked={payQr && Boolean(paymentQrUrl)}
+                disabled={!paymentQrUrl}
+                onChange={setPayQr}
+              />
+              <ToggleRow
+                icon={Clock}
+                label="Pay Later"
+                desc="Send the order to the kitchen now; the guest settles the bill afterwards. Stays marked pending payment."
+                checked={payLater}
+                onChange={setPayLater}
+              />
+            </div>
+          </div>
+
+          <div className="mt-8 pt-6 border-t border-saffron-200/70 dark:border-masala-700">
+            <div className="flex items-center gap-2 text-sm font-semibold text-masala-800 dark:text-saffron-100">
               Ordering channels
             </div>
             <p className="mt-1 text-xs text-masala-600 dark:text-saffron-200/70">
@@ -187,9 +266,14 @@ export default function AdminSettings() {
   )
 }
 
-function ToggleRow({ icon: Icon, label, desc, checked, onChange }) {
+function ToggleRow({ icon: Icon, label, desc, checked, onChange, disabled = false }) {
   return (
-    <label className="flex items-center gap-3 rounded-2xl border border-saffron-200 dark:border-masala-700 bg-cream/60 dark:bg-masala-800/40 px-4 py-3 cursor-pointer">
+    <label
+      className={clsx(
+        'flex items-center gap-3 rounded-2xl border border-saffron-200 dark:border-masala-700 bg-cream/60 dark:bg-masala-800/40 px-4 py-3',
+        disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer',
+      )}
+    >
       <div className="h-9 w-9 rounded-full bg-curry-gradient flex items-center justify-center shadow-warm shrink-0">
         <Icon className="h-4 w-4 text-white" />
       </div>
@@ -201,9 +285,11 @@ function ToggleRow({ icon: Icon, label, desc, checked, onChange }) {
         type="button"
         role="switch"
         aria-checked={checked}
-        onClick={() => onChange(!checked)}
+        disabled={disabled}
+        onClick={() => !disabled && onChange(!checked)}
         className={clsx(
           'relative h-6 w-11 rounded-full transition shrink-0',
+          disabled && 'cursor-not-allowed',
           checked ? 'bg-emerald-500' : 'bg-masala-300 dark:bg-masala-600',
         )}
       >
