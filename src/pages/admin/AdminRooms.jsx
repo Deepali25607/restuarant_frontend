@@ -7,8 +7,13 @@ import { fetchRooms, createRoom, deleteRoom } from '../../lib/api'
 import { useAuthStore } from '../../store/useAuthStore'
 import BulkQrSheet from '../../components/admin/BulkQrSheet'
 
+// QR codes must point at the app's public root *including* the deploy sub-path
+// (e.g. https://nexussoftlab.com/OrderNow), so scanned links land in-app rather
+// than at the bare domain. BASE_URL is "/OrderNow/" in prod, "/" in dev.
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, '')
 const customerOrigin =
-  typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5180'
+  (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5180') +
+  basePath
 
 export default function AdminRooms() {
   const orgSlug = useAuthStore((s) => s.user?.organization?.slug || '')

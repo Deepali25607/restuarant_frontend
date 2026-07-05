@@ -18,9 +18,14 @@ useLocaleStore.getState().hydrate()
 // from the super-admin without a hard reload.
 loadPlatformBranding()
 
+// The app is served from a sub-path (e.g. "/OrderNow") in production. Vite's
+// BASE_URL carries that value ("/OrderNow/" or "/" in dev); strip the trailing
+// slash so React Router treats every in-app route as relative to it.
+const routerBasename = import.meta.env.BASE_URL.replace(/\/$/, '')
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename={routerBasename}>
       <I18nProvider>
         <App />
         <Toaster
