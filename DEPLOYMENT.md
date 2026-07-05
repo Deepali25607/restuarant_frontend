@@ -129,6 +129,27 @@ cd resto-frontend && git pull && npm ci && npm run build && sudo cp -r dist/* /v
 
 ---
 
+## Android app
+
+The native Android app (`resto-android/`) is a WebView wrapper around this same
+deployed site — pull-to-refresh + working back button included. It always shows
+the live site, so no rebuild is needed when the web app changes.
+
+**User download link:** `https://nexussoftlab.com/OrderNow/app`
+
+To publish it:
+```bash
+# 1. Build + sign the APK (see resto-android/README.md), rename to ordernow.apk
+sudo mkdir -p /var/www/ordernow-app
+sudo cp ordernow.apk /var/www/ordernow-app/ordernow.apk
+sudo cp resto-frontend/deploy/download/index.html /var/www/ordernow-app/index.html
+sudo systemctl reload nginx   # the /OrderNow/app/ blocks are already in the config
+```
+The Nginx config in `deploy/nginx-nexussoftlab.conf` already serves the landing
+page and the APK (with the correct `application/vnd.android.package-archive` type).
+
+---
+
 ## Troubleshooting
 
 - **Blank page / 404 on assets** — the `base` and the Nginx `alias` path must

@@ -7,6 +7,7 @@ import { useOrgStore } from '../store/useOrgStore'
 import { usePlatformStore } from '../store/usePlatformStore'
 import LanguagePicker from './LanguagePicker'
 import ThemeToggle from './ThemeToggle'
+import GetAppButton from './GetAppButton'
 
 export default function Layout() {
   const location = useLocation()
@@ -95,10 +96,13 @@ export default function Layout() {
 
       {!onWelcome && (
         <footer
-          className="py-8 text-center text-xs opacity-70"
+          className="py-8 flex flex-col items-center gap-3 text-xs opacity-70"
           style={{ color: 'var(--text-muted)' }}
         >
-          Crafted with ghee &amp; love · {orgName || platformName} © {new Date().getFullYear()}
+          <GetAppButton variant="link" />
+          <div>
+            Crafted with ghee &amp; love · {orgName || platformName} © {new Date().getFullYear()}
+          </div>
         </footer>
       )}
     </div>

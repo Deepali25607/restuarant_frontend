@@ -10,6 +10,7 @@ import { fetchLocation } from '../lib/api'
 import { locationNoun } from '../lib/location'
 import LanguagePicker from '../components/LanguagePicker'
 import ThemeToggle from '../components/ThemeToggle'
+import GetAppButton from '../components/GetAppButton'
 
 const heroDishes = [
   {
@@ -173,6 +174,7 @@ export default function Welcome() {
               <Store className="h-4 w-4" />
               <span className="hidden sm:inline">Create your organization</span>
             </Link>
+            <GetAppButton />
             <LanguagePicker variant="pill" />
             <ThemeToggle />
           </div>
