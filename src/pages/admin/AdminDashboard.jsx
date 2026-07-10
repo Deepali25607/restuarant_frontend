@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import clsx from 'clsx'
-import { IndianRupee, ShoppingBag, Table2, Activity, TrendingUp, Flame, Package, AlertTriangle } from 'lucide-react'
-import { adminOverview, fetchLowStock } from '../../lib/api'
+import { IndianRupee, ShoppingBag, Table2, Activity, TrendingUp, Flame, Package, AlertTriangle, Sparkles, Star, ThumbsUp, Wrench } from 'lucide-react'
+import { adminOverview, fetchLowStock, aiReviewSummary } from '../../lib/api'
 import { getSocket } from '../../lib/socket'
 import { orderLabel } from '../../lib/location'
 
@@ -29,6 +29,19 @@ export default function AdminDashboard() {
   const [data, setData] = useState(null)
   const [lowStock, setLowStock] = useState([])
   const [error, setError] = useState('')
+  const [reviewAi, setReviewAi] = useState(null)
+
+  // Fetched once, outside the 5s refresh loop — the backend caches the
+  // Gemini summary for 10 minutes anyway.
+  useEffect(() => {
+    let alive = true
+    aiReviewSummary()
+      .then((d) => alive && setReviewAi(d))
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -179,6 +192,10 @@ export default function AdminDashboard() {
         </div>
       </div>
 
+      {reviewAi?.enabled && reviewAi?.summary && (
+        <ReviewSummaryCard data={reviewAi} />
+      )}
+
       {lowStock.length > 0 && (
         <div className="card p-6 border-l-4 border-l-chilli-500">
           <div className="flex items-center justify-between">
@@ -228,6 +245,78 @@ export default function AdminDashboard() {
           </ul>
         </div>
       )}
+    </div>
+  )
+}
+
+const SENTIMENT_TONE = {
+  positive: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200',
+  mixed: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200',
+  negative: 'bg-chilli-100 text-chilli-800 dark:bg-chilli-900/40 dark:text-chilli-200',
+}
+
+// Gemini-written digest of the latest customer reviews. Rendered only when the
+// backend has an API key and at least a few reviews to work with.
+function ReviewSummaryCard({ data }) {
+  return (
+    <div className="card p-6">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-saffron-700" />
+          <h2 className="font-display text-xl text-masala-900">What customers are saying</h2>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold capitalize ${SENTIMENT_TONE[data.sentiment] || SENTIMENT_TONE.mixed}`}>
+            {data.sentiment}
+          </span>
+          <span className="inline-flex items-center gap-1 text-xs text-masala-600">
+            <Star className="h-3.5 w-3.5 text-saffron-500 fill-saffron-400" />
+            {data.averages?.overall}/5 · {data.count} reviews
+          </span>
+        </div>
+      </div>
+
+      <p className="mt-3 text-sm" style={{ color: 'var(--text-muted)' }}>
+        {data.summary}
+      </p>
+
+      <div className="mt-4 grid sm:grid-cols-2 gap-4">
+        {data.highlights?.length > 0 && (
+          <div>
+            <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-emerald-700 dark:text-emerald-300">
+              <ThumbsUp className="h-3.5 w-3.5" /> Loved
+            </div>
+            <ul className="mt-2 space-y-1.5">
+              {data.highlights.map((h) => (
+                <li key={h} className="text-sm flex gap-2">
+                  <span className="text-emerald-500">•</span>
+                  <span style={{ color: 'var(--text)' }}>{h}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {data.improvements?.length > 0 && (
+          <div>
+            <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-amber-700 dark:text-amber-300">
+              <Wrench className="h-3.5 w-3.5" /> Could improve
+            </div>
+            <ul className="mt-2 space-y-1.5">
+              {data.improvements.map((h) => (
+                <li key={h} className="text-sm flex gap-2">
+                  <span className="text-amber-500">•</span>
+                  <span style={{ color: 'var(--text)' }}>{h}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+
+      <p className="mt-4 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+        <Sparkles className="inline h-3 w-3 mr-1 -mt-0.5" />
+        AI-generated from your latest reviews · refreshes every 10 minutes
+      </p>
     </div>
   )
 }

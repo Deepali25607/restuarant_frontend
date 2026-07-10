@@ -162,5 +162,22 @@
   "rating.sending": "Sending…",
   "rating.done.title": "Dhanyavaad!",
   "rating.done.subtitle": "Your feedback fuels our kitchen. We hope to see you again very soon.",
-  "rating.done.cta": "Finish session"
+  "rating.done.cta": "Finish session",
+
+  "ai.title": "AI Waiter",
+  "ai.subtitle": "Your dining assistant",
+  "ai.greeting": "Namaste! 🙏 I'm your AI waiter. Ask me for recommendations, veg / vegan / Jain options, high-protein picks, combos — or anything about the menu.",
+  "ai.placeholder": "Ask about dishes, diets, combos…",
+  "ai.listening": "Listening…",
+  "ai.thinking": "Thinking…",
+  "ai.error": "Something went wrong — please try again.",
+  "ai.open": "Ask the AI waiter",
+  "ai.send": "Send",
+  "ai.voice": "Voice input",
+  "ai.chip.recommend": "Recommend something",
+  "ai.chip.veg": "Veg options",
+  "ai.chip.jain": "Jain-friendly",
+  "ai.chip.protein": "High protein",
+  "ai.chip.combo": "Suggest a combo",
+  "ai.orderSummary.title": "AI summary"
 }

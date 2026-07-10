@@ -13,13 +13,57 @@ import {
   HandPlatter,
   Star,
   QrCode,
+  Sparkles,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { toast } from 'sonner'
-import { getOrder, setOrderPaymentMethod, fetchOrgBranding } from '../lib/api'
+import { getOrder, setOrderPaymentMethod, fetchOrgBranding, aiOrderSummary } from '../lib/api'
 import { getSocket } from '../lib/socket'
 import { orderNo } from '../lib/location'
 import { useOrgStore } from '../store/useOrgStore'
+import { useLocaleStore } from '../store/useLocaleStore'
+
+// One Gemini-written summary per (order, language) — regenerating on every
+// poll/socket refresh would waste free-tier quota for identical output.
+const summaryCache = new Map()
+
+function AiOrderSummary({ orderId }) {
+  const locale = useLocaleStore((s) => s.locale)
+  const key = `${orderId}|${locale}`
+  // Render straight from the cache; the effect only fills it (then re-renders).
+  const [, bump] = useState(0)
+
+  useEffect(() => {
+    if (summaryCache.has(key)) return
+    let alive = true
+    aiOrderSummary(orderId, locale)
+      .then((d) => {
+        if (!d?.summary) return
+        summaryCache.set(key, d.summary)
+        if (alive) bump((n) => n + 1)
+      })
+      .catch(() => {}) // AI disabled or busy — the card simply doesn't render
+    return () => {
+      alive = false
+    }
+  }, [key, orderId, locale])
+
+  const summary = summaryCache.get(key) || ''
+  if (!summary) return null
+  return (
+    <div className="mt-6 rounded-2xl border border-saffron-200 dark:border-masala-700 bg-saffron-50/60 dark:bg-masala-800/40 p-4 flex gap-3">
+      <Sparkles className="h-4 w-4 mt-0.5 shrink-0 text-saffron-600 dark:text-saffron-400" />
+      <div>
+        <div className="text-[10px] uppercase tracking-[0.25em] text-saffron-600 dark:text-saffron-300">
+          <FormattedMessage id="ai.orderSummary.title" />
+        </div>
+        <p className="text-sm mt-1" style={{ color: 'var(--text)' }}>
+          {summary}
+        </p>
+      </div>
+    </div>
+  )
+}
 
 const STAGES = [
   { key: 'received', icon: Bell },
@@ -286,6 +330,8 @@ export default function Tracking() {
             )
           })}
         </ol>
+
+        <AiOrderSummary orderId={order.id} />
       </div>
 
       <div className="mt-8 grid md:grid-cols-[1fr_320px] gap-6">
@@ -314,7 +360,18 @@ export default function Tracking() {
           <h3 className="font-display text-lg"><FormattedMessage id="tracking.bill" /></h3>
           <div className="mt-3 text-sm space-y-1.5">
             <div className="flex justify-between"><span><FormattedMessage id="common.subtotal" /></span><span>₹{order.amounts.subtotal}</span></div>
-            <div className="flex justify-between"><span><FormattedMessage id="common.tax" values={{ label: taxLabel, rate: gstRate }} /></span><span>₹{order.amounts.tax}</span></div>
+            {/* With per-dish GST overrides the org default rate may not explain
+                the amount — only show "(X%)" when it actually does. */}
+            <div className="flex justify-between">
+              <span>
+                {Math.round(order.amounts.subtotal * (gstRate / 100)) === order.amounts.tax ? (
+                  <FormattedMessage id="common.tax" values={{ label: taxLabel, rate: gstRate }} />
+                ) : (
+                  taxLabel
+                )}
+              </span>
+              <span>₹{order.amounts.tax}</span>
+            </div>
             <div className="flex justify-between font-semibold pt-2 border-t border-saffron-200 dark:border-masala-700 mt-2">
               <span><FormattedMessage id="common.total" /></span><span>₹{order.amounts.total}</span>
             </div>

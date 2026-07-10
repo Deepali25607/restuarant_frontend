@@ -36,8 +36,18 @@ export default function Cart() {
   const setOrg = useOrgStore((s) => s.setOrg)
   const gstRate = Number.isFinite(branding?.gstRate) ? branding.gstRate : 5
   const taxLabel = branding?.taxLabel || 'GST'
-  const tax = Math.round(subtotal * (gstRate / 100))
-  const total = subtotal + tax
+  // Per-item GST: a dish can carry its own gstRate (set by the admin);
+  // otherwise the restaurant's default applies. Mirrors the server's
+  // authoritative computation in createOrder.
+  const rateFor = (item) => (Number.isFinite(item.gstRate) ? item.gstRate : gstRate)
+  const tax = Math.round(
+    cart.reduce((sum, item) => sum + item.price * item.qty * (rateFor(item) / 100), 0),
+  )
+  // With mixed per-dish rates a single "(5%)" suffix would be wrong — show
+  // just the tax label in that case.
+  const uniformRate = cart.every((item) => rateFor(item) === rateFor(cart[0]))
+    ? rateFor(cart[0] || {})
+    : null
 
   const [payment, setPayment] = useState('upi')
   const [submitting, setSubmitting] = useState(false)
@@ -361,7 +371,16 @@ export default function Cart() {
           <h2 className="font-display text-xl"><FormattedMessage id="cart.billSummary" /></h2>
           <dl className="mt-4 space-y-2 text-sm">
             <Row label={<FormattedMessage id="common.subtotal" />} value={`₹${subtotal}`} />
-            <Row label={<FormattedMessage id="common.tax" values={{ label: taxLabel, rate: gstRate }} />} value={`₹${tax}`} />
+            <Row
+              label={
+                uniformRate != null ? (
+                  <FormattedMessage id="common.tax" values={{ label: taxLabel, rate: uniformRate }} />
+                ) : (
+                  taxLabel
+                )
+              }
+              value={`₹${tax}`}
+            />
             {loyaltyDiscount > 0 && (
               <Row
                 label={

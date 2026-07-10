@@ -8,6 +8,7 @@ import { usePlatformStore } from '../store/usePlatformStore'
 import LanguagePicker from './LanguagePicker'
 import ThemeToggle from './ThemeToggle'
 import GetAppButton from './GetAppButton'
+import AiWaiter from './AiWaiter'
 
 export default function Layout() {
   const location = useLocation()
@@ -93,6 +94,8 @@ export default function Layout() {
           </motion.div>
         </AnimatePresence>
       </main>
+
+      {!onWelcome && <AiWaiter />}
 
       {!onWelcome && (
         <footer

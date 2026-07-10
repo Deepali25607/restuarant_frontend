@@ -20,6 +20,7 @@ const AdminTables = lazy(() => import('./pages/admin/AdminTables.jsx'))
 const AdminRooms = lazy(() => import('./pages/admin/AdminRooms.jsx'))
 const AdminStaff = lazy(() => import('./pages/admin/AdminStaff.jsx'))
 const AdminReports = lazy(() => import('./pages/admin/AdminReports.jsx'))
+const AdminInsights = lazy(() => import('./pages/admin/AdminInsights.jsx'))
 const AdminExpenses = lazy(() => import('./pages/admin/AdminExpenses.jsx'))
 const AdminAudit = lazy(() => import('./pages/admin/AdminAudit.jsx'))
 const AdminLoyalty = lazy(() => import('./pages/admin/AdminLoyalty.jsx'))
@@ -88,6 +89,7 @@ export default function App() {
         <Route path="staff" element={<Suspense fallback={null}><AdminStaff /></Suspense>} />
         <Route path="expenses" element={<Suspense fallback={null}><AdminExpenses /></Suspense>} />
         <Route path="reports" element={<Suspense fallback={null}><AdminReports /></Suspense>} />
+        <Route path="insights" element={<Suspense fallback={null}><AdminInsights /></Suspense>} />
         <Route path="loyalty" element={<Suspense fallback={null}><AdminLoyalty /></Suspense>} />
         <Route path="settings" element={<Suspense fallback={null}><AdminSettings /></Suspense>} />
         <Route path="audit" element={<Suspense fallback={null}><AdminAudit /></Suspense>} />

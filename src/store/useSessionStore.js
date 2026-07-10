@@ -73,6 +73,29 @@ export const useSessionStore = create(
           ),
         })),
       clearCart: () => set({ cart: [] }),
+      // The cart persists dish snapshots in localStorage, so admin edits
+      // (price, GST rate, availability) made after an item was added would
+      // otherwise go stale. Called with the freshly fetched menu to bring
+      // every cart line up to date.
+      syncWithMenu: (menu) =>
+        set((s) => {
+          if (!Array.isArray(menu) || !menu.length || !s.cart.length) return {}
+          const byId = new Map(menu.map((d) => [d.id, d]))
+          return {
+            cart: s.cart.map((c) => {
+              const fresh = byId.get(c.id)
+              if (!fresh) return c
+              return {
+                ...c,
+                name: fresh.name,
+                price: fresh.price,
+                gstRate: fresh.gstRate,
+                image: fresh.image,
+                isVeg: fresh.isVeg,
+              }
+            }),
+          }
+        }),
     }),
     { name: 'masala-story-session' },
   ),

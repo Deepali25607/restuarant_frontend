@@ -227,6 +227,19 @@ export const restockDish = (id, payload) =>
 export const fetchLowStock = () =>
   api.get('/admin/inventory/low').then((r) => r.data)
 
+// AI assistant (Gemini). `/ai/status` tells the UI whether to show AI
+// surfaces at all — the backend runs without a key and 503s otherwise.
+export const aiStatus = () => api.get('/ai/status').then((r) => r.data)
+export const aiChat = (payload) => api.post('/ai/chat', payload).then((r) => r.data)
+export const aiOrderSummary = (orderId, locale) =>
+  api.get(`/ai/order-summary/${orderId}`, { params: { locale } }).then((r) => r.data)
+export const aiDescribeDish = (payload) =>
+  api.post('/ai/describe-dish', payload).then((r) => r.data)
+export const aiReviewSummary = () =>
+  api.get('/ai/review-summary').then((r) => r.data)
+export const aiInsights = (payload) =>
+  api.post('/ai/insights', payload).then((r) => r.data)
+
 export const loyaltyLookup = (phone) =>
   api.get('/loyalty/lookup', { params: { phone } }).then((r) => r.data)
 export const loyaltyJoin = (payload) =>

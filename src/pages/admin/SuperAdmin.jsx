@@ -881,6 +881,8 @@ function SubscriptionDialog({ org, onClose, onOrgChanged }) {
   const [tableAllowedDraft, setTableAllowedDraft] = useState(Boolean(allowedNow.table))
   const [roomAllowedDraft, setRoomAllowedDraft] = useState(Boolean(allowedNow.room))
   const [takeawayAllowedDraft, setTakeawayAllowedDraft] = useState(Boolean(allowedNow.takeaway))
+  // Premium AI entitlement — effective value (org override ?? plan default).
+  const [aiAllowedDraft, setAiAllowedDraft] = useState(Boolean(org.aiEntitled))
 
   useEffect(() => {
     let alive = true
@@ -947,16 +949,18 @@ function SubscriptionDialog({ org, onClose, onOrgChanged }) {
   const channelsChanged =
     tableAllowedDraft !== Boolean(allowedNow.table) ||
     roomAllowedDraft !== Boolean(allowedNow.room) ||
-    takeawayAllowedDraft !== Boolean(allowedNow.takeaway)
+    takeawayAllowedDraft !== Boolean(allowedNow.takeaway) ||
+    aiAllowedDraft !== Boolean(org.aiEntitled)
 
   const saveChannels = () => guard(async () => {
     const updated = await updateOrganization(org.id, {
       tableOrderingAllowed: tableAllowedDraft,
       roomOrderingAllowed: roomAllowedDraft,
       takeawayOrderingAllowed: takeawayAllowedDraft,
+      aiAllowed: aiAllowedDraft,
     })
     onOrgChanged(updated)
-    toast.success('Channel access updated')
+    toast.success('Feature access updated')
   })
 
   const extend = ({ markPaid, recordInvoice }) => guard(async () => {
@@ -1178,6 +1182,12 @@ function SubscriptionDialog({ org, onClose, onOrgChanged }) {
                 desc="Allow the restaurant to offer takeaway ordering."
                 checked={takeawayAllowedDraft}
                 onChange={setTakeawayAllowedDraft}
+              />
+              <ChannelToggle
+                label="✨ AI features (premium)"
+                desc="AI waiter chatbot, business insights, review summaries & menu descriptions."
+                checked={aiAllowedDraft}
+                onChange={setAiAllowedDraft}
               />
             </div>
             <div className="mt-3 flex justify-end">
@@ -1579,6 +1589,7 @@ const blankPlan = {
   contactSales: false, recommended: false, selfServe: true, sortOrder: 0, active: true,
   limits: { tables: '', rooms: '', users: '', dishes: '' },
   channels: { table: true, room: false, takeaway: false },
+  ai: false, // premium AI features (waiter chatbot, insights, summaries)
 }
 
 function PlansManager({ onError }) {
@@ -1629,6 +1640,7 @@ function PlansManager({ onError }) {
               </div>
             </div>
             <div className="flex flex-wrap gap-1">
+              {p.ai && <Tag>✨ AI</Tag>}
               {p.recommended && <Tag>Popular</Tag>}
               {p.isTrial && <Tag>Trial</Tag>}
               {p.contactSales && <Tag>Contact sales</Tag>}
@@ -1676,6 +1688,7 @@ function PlanEditor({ draft, onClose, onSaved }) {
         billable: form.billable, isTrial: form.isTrial,
         contactSales: form.contactSales, recommended: form.recommended,
         selfServe: form.selfServe, active: form.active,
+        ai: Boolean(form.ai),
         sortOrder: Number(form.sortOrder) || 0,
         limits: { tables: numOrNull(form.limits.tables), rooms: numOrNull(form.limits.rooms), users: numOrNull(form.limits.users), dishes: numOrNull(form.limits.dishes) },
         channels: form.channels,
@@ -1711,6 +1724,7 @@ function PlanEditor({ draft, onClose, onSaved }) {
         ))}
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">
+        <MiniCheck label="✨ AI features (premium)" checked={Boolean(form.ai)} onChange={(v) => set({ ai: v })} />
         <MiniCheck label="Billable (paid)" checked={form.billable} onChange={(v) => set({ billable: v })} />
         <MiniCheck label="Is the free trial" checked={form.isTrial} onChange={(v) => set({ isTrial: v })} />
         <MiniCheck label="Recommended badge" checked={form.recommended} onChange={(v) => set({ recommended: v })} />

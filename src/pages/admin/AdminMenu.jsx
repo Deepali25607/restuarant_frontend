@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Pencil, Trash2, X, Save, Image as ImageIcon, AlertTriangle, UtensilsCrossed, Upload, Loader2, Package, PackagePlus, Timer, Tags } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Save, Image as ImageIcon, AlertTriangle, UtensilsCrossed, Upload, Loader2, Package, PackagePlus, Timer, Tags, Sparkles } from 'lucide-react'
 import clsx from 'clsx'
 import { toast } from 'sonner'
-import { fetchMenu, fetchAdminCategories, createDish, updateDish, deleteDish, uploadImage, restockDish, createCategory, updateCategory, deleteCategory } from '../../lib/api'
+import { fetchMenu, fetchAdminCategories, createDish, updateDish, deleteDish, uploadImage, restockDish, createCategory, updateCategory, deleteCategory, aiStatus, aiDescribeDish } from '../../lib/api'
 import SpiceMeter from '../../components/SpiceMeter'
 import DishImage from '../../components/DishImage'
 import UsageGauge, { refreshUsage } from '../../components/admin/UsageGauge'
@@ -16,6 +16,8 @@ const blank = {
   image: '',
   isVeg: true,
   spice: 1,
+  gstRate: '', // '' = use the restaurant's default GST rate
+
   available: true,
   tag: '',
   trackStock: false,
@@ -32,6 +34,7 @@ export default function AdminMenu() {
   const [restocking, setRestocking] = useState(null)
   const [managingCats, setManagingCats] = useState(false)
   const [error, setError] = useState('')
+  const [aiEnabled, setAiEnabled] = useState(false)
 
   useEffect(() => {
     Promise.all([fetchMenu(), fetchAdminCategories()])
@@ -40,6 +43,9 @@ export default function AdminMenu() {
         setCategories(c)
       })
       .catch((e) => setError(e?.response?.data?.message || e.message))
+    aiStatus()
+      .then((s) => setAiEnabled(Boolean(s?.enabled)))
+      .catch(() => {})
   }, [])
 
   const visible = useMemo(
@@ -280,6 +286,13 @@ export default function AdminMenu() {
                   value={editing.prepMinutes ?? 0}
                   onChange={(v) => setEditing({ ...editing, prepMinutes: Math.max(0, Number(v) || 0) })}
                 />
+                <Field
+                  label="GST % (blank = restaurant default)"
+                  type="number"
+                  value={editing.gstRate ?? ''}
+                  onChange={(v) => setEditing({ ...editing, gstRate: v })}
+                  placeholder="e.g. 5, 12, 18"
+                />
                 <div className="sm:col-span-2">
                   <ImageField
                     value={editing.image}
@@ -287,11 +300,23 @@ export default function AdminMenu() {
                   />
                 </div>
                 <div className="sm:col-span-2">
-                  <Field
-                    label="Description"
-                    type="textarea"
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold uppercase tracking-widest text-masala-700">
+                      Description
+                    </span>
+                    {aiEnabled && (
+                      <AiDescribeButton
+                        dish={editing}
+                        categoryName={categories.find((c) => c.id === editing.categoryId)?.name}
+                        onResult={(text) => setEditing((e) => ({ ...e, description: text }))}
+                      />
+                    )}
+                  </div>
+                  <textarea
                     value={editing.description}
-                    onChange={(v) => setEditing({ ...editing, description: v })}
+                    onChange={(e) => setEditing({ ...editing, description: e.target.value })}
+                    rows={3}
+                    className="mt-1.5 w-full bg-cream rounded-2xl border border-saffron-200 px-3 py-2 text-sm outline-none focus:border-saffron-400 resize-none"
                   />
                 </div>
                 <Field
@@ -387,6 +412,47 @@ export default function AdminMenu() {
         )}
       </AnimatePresence>
     </div>
+  )
+}
+
+// "Write with AI" — asks Gemini for a short menu description from the dish
+// facts already in the form. Only rendered when the backend has a key.
+function AiDescribeButton({ dish, categoryName, onResult }) {
+  const [busy, setBusy] = useState(false)
+
+  const run = async () => {
+    if (!dish.name?.trim()) {
+      toast.error('Give the dish a name first')
+      return
+    }
+    setBusy(true)
+    try {
+      const res = await aiDescribeDish({
+        name: dish.name,
+        category: categoryName || '',
+        isVeg: dish.isVeg,
+        spice: dish.spice,
+        tag: dish.tag || '',
+      })
+      onResult(res.description)
+      toast.success('Description written — tweak it as you like')
+    } catch (e) {
+      toast.error(e?.response?.data?.message || e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={run}
+      disabled={busy}
+      className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold border border-saffron-300 text-saffron-700 hover:bg-saffron-50 disabled:opacity-50 transition"
+    >
+      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+      {busy ? 'Writing…' : 'Write with AI'}
+    </button>
   )
 }
 

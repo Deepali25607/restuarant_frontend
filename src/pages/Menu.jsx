@@ -26,6 +26,7 @@ export default function Menu() {
   const serviceType = useSessionStore((s) => s.serviceType)
   const setTable = useSessionStore((s) => s.setTable)
   const addItem = useSessionStore((s) => s.addItem)
+  const syncWithMenu = useSessionStore((s) => s.syncWithMenu)
   const cartCount = useSessionStore(selectCartCount)
   const cartTotal = useSessionStore(selectCartSubtotal)
 
@@ -52,13 +53,16 @@ export default function Menu() {
       .then(([m, c]) => {
         setMenu(m)
         setCategories(c)
+        // Refresh any cart snapshots so price/GST edits made by the admin
+        // since the item was added are reflected at checkout.
+        syncWithMenu(m)
         setLoading(false)
       })
       .catch((e) => {
         setError(e?.message || 'Failed to load menu')
         setLoading(false)
       })
-  }, [navigate, tableNo, isTakeaway])
+  }, [navigate, tableNo, isTakeaway, syncWithMenu])
 
   // Keep the running tab fresh: on mount, when the tab is opened, and every
   // time the customer brings the tab back into focus (e.g. after placing an
@@ -371,7 +375,16 @@ function TableTabSheet({ tab, tableNo, serviceType, onClose, onTrack }) {
 
         <div className="border-t border-saffron-200/70 dark:border-masala-700 px-6 py-5 space-y-2 bg-saffron-50/50 dark:bg-masala-800/40">
           <Row label={<FormattedMessage id="common.subtotal" />} value={tab.totals.subtotal} />
-          <Row label={<FormattedMessage id="common.tax" values={{ label: taxLabel, rate: gstRate }} />} value={tab.totals.tax} />
+          <Row
+            label={
+              Math.round(tab.totals.subtotal * (gstRate / 100)) === tab.totals.tax ? (
+                <FormattedMessage id="common.tax" values={{ label: taxLabel, rate: gstRate }} />
+              ) : (
+                taxLabel
+              )
+            }
+            value={tab.totals.tax}
+          />
           {tab.totals.discount > 0 && (
             <Row
               label={<FormattedMessage id="cart.loyalty.discount" />}

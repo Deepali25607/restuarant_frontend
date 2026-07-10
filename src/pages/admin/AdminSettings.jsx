@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { QrCode, Upload, Loader2, Save, Trash2, Image as ImageIcon, Wallet, Table2, BedDouble, ShoppingBag, BadgeIndianRupee, CreditCard, Clock } from 'lucide-react'
+import { QrCode, Upload, Loader2, Save, Trash2, Image as ImageIcon, Wallet, Table2, BedDouble, ShoppingBag, BadgeIndianRupee, CreditCard, Clock, Percent } from 'lucide-react'
 import clsx from 'clsx'
 import { toast } from 'sonner'
 import { fetchOrgSettings, updateOrgSettings, uploadImage } from '../../lib/api'
@@ -17,6 +17,10 @@ export default function AdminSettings() {
   const [payCard, setPayCard] = useState(true)
   const [payQr, setPayQr] = useState(true)
   const [payLater, setPayLater] = useState(false)
+  // Taxes: the restaurant-wide GST. 0 = no GST anywhere. Dishes can override
+  // this rate individually from the menu editor.
+  const [gstRate, setGstRate] = useState('5')
+  const [taxLabel, setTaxLabel] = useState('GST')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -39,6 +43,8 @@ export default function AdminSettings() {
         setPayCard(s.payCardEnabled !== false)
         setPayQr(s.payQrEnabled !== false)
         setPayLater(Boolean(s.payLaterEnabled))
+        setGstRate(String(Number.isFinite(s.gstRate) ? s.gstRate : 5))
+        setTaxLabel(s.taxLabel || 'GST')
       })
       .catch((e) => setError(e?.response?.data?.message || e.message))
   }, [])
@@ -53,7 +59,9 @@ export default function AdminSettings() {
       payUpi !== (settings.payUpiEnabled !== false) ||
       payCard !== (settings.payCardEnabled !== false) ||
       payQr !== (settings.payQrEnabled !== false) ||
-      payLater !== Boolean(settings.payLaterEnabled))
+      payLater !== Boolean(settings.payLaterEnabled) ||
+      Number(gstRate) !== (Number.isFinite(settings.gstRate) ? settings.gstRate : 5) ||
+      taxLabel !== (settings.taxLabel || 'GST'))
 
   const save = async () => {
     setSaving(true)
@@ -68,6 +76,8 @@ export default function AdminSettings() {
         payCardEnabled: payCard,
         payQrEnabled: payQr,
         payLaterEnabled: payLater,
+        gstRate: Math.max(0, Math.min(100, Number(gstRate) || 0)),
+        taxLabel: taxLabel.trim() || 'GST',
       }
       if (allowed.table) payload.tableOrderingEnabled = tableEnabled
       if (allowed.room) payload.roomOrderingEnabled = roomEnabled
@@ -83,6 +93,8 @@ export default function AdminSettings() {
       setPayCard(updated.payCardEnabled !== false)
       setPayQr(updated.payQrEnabled !== false)
       setPayLater(Boolean(updated.payLaterEnabled))
+      setGstRate(String(Number.isFinite(updated.gstRate) ? updated.gstRate : 5))
+      setTaxLabel(updated.taxLabel || 'GST')
       toast.success('Settings saved')
     } catch (e) {
       const msg = e?.response?.data?.message || e.message
@@ -198,6 +210,44 @@ export default function AdminSettings() {
                 checked={payLater}
                 onChange={setPayLater}
               />
+            </div>
+          </div>
+
+          <div className="mt-8 pt-6 border-t border-saffron-200/70 dark:border-masala-700">
+            <div className="flex items-center gap-2 text-sm font-semibold text-masala-800 dark:text-saffron-100">
+              <Percent className="h-4 w-4 text-saffron-600" /> Taxes
+            </div>
+            <p className="mt-1 text-xs text-masala-600 dark:text-saffron-200/70">
+              This rate applies to every dish on the bill. Set it to 0 to charge no tax.
+              Individual dishes can override it from the menu editor (Menu → edit dish → GST %).
+            </p>
+            <div className="mt-4 grid sm:grid-cols-2 gap-3">
+              <label className="block">
+                <span className="text-xs font-semibold uppercase tracking-widest text-masala-700 dark:text-saffron-200">
+                  Tax rate (%)
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  value={gstRate}
+                  onChange={(e) => setGstRate(e.target.value)}
+                  className="mt-1.5 w-full bg-cream dark:bg-masala-800 rounded-2xl border border-saffron-200 dark:border-masala-700 px-3 py-2 text-sm outline-none focus:border-saffron-400"
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold uppercase tracking-widest text-masala-700 dark:text-saffron-200">
+                  Label on the bill
+                </span>
+                <input
+                  value={taxLabel}
+                  onChange={(e) => setTaxLabel(e.target.value)}
+                  placeholder="GST"
+                  maxLength={20}
+                  className="mt-1.5 w-full bg-cream dark:bg-masala-800 rounded-2xl border border-saffron-200 dark:border-masala-700 px-3 py-2 text-sm outline-none focus:border-saffron-400"
+                />
+              </label>
             </div>
           </div>
 

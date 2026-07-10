@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useNavigate, Navigate, useLocation } from 'react-router-dom'
-import { LayoutDashboard, UtensilsCrossed, Table2, BedDouble, ClipboardList, Users, LogOut, Flame, BarChart3, Wallet, ScrollText, Sparkles, Settings, Coins, KeyRound } from 'lucide-react'
+import { LayoutDashboard, UtensilsCrossed, Table2, BedDouble, ClipboardList, Users, LogOut, Flame, BarChart3, Wallet, ScrollText, Sparkles, Settings, Coins, KeyRound, MessageSquareText } from 'lucide-react'
 import clsx from 'clsx'
 import { toast } from 'sonner'
 import { useAuthStore } from '../../store/useAuthStore'
@@ -21,6 +21,7 @@ const navItems = [
   { to: '/admin/staff', label: 'Staff', icon: Users, perm: 'staff.view' },
   { to: '/admin/expenses', label: 'Expenses', icon: Wallet, perm: 'expenses.view' },
   { to: '/admin/reports', label: 'Reports', icon: BarChart3, perm: 'reports.view' },
+  { to: '/admin/insights', label: 'AI Insights', icon: MessageSquareText, perm: 'reports.view' },
   { to: '/admin/loyalty', label: 'Loyalty', icon: Sparkles, perm: 'loyalty.view' },
   { to: '/admin/audit', label: 'Audit log', icon: ScrollText, perm: 'audit.view' },
   { to: '/admin/settings', label: 'Settings', icon: Settings, perm: 'settings.manage' },
