@@ -123,7 +123,7 @@ export default function Welcome() {
     <div className="relative overflow-hidden">
       <div className="absolute inset-0 bg-spice-radial pointer-events-none" />
       <div className="relative max-w-6xl mx-auto px-5 md:px-10 pt-8 pb-20">
-        <nav className="flex items-center justify-between">
+        <nav className="flex flex-wrap items-center justify-between gap-y-3">
           <button
             type="button"
             onClick={onBrandClick}
@@ -157,14 +157,14 @@ export default function Welcome() {
               </div>
             </div>
           </button>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             {/* Restaurant-owner entry points — sign in or create a new org. */}
             <Link
               to="/admin/login"
               className="inline-flex items-center gap-1.5 rounded-full border border-saffron-200 dark:border-masala-700 bg-white/70 dark:bg-masala-800/60 px-3 py-1.5 text-sm font-semibold text-masala-700 dark:text-saffron-200 hover:bg-saffron-50 dark:hover:bg-masala-700 transition"
             >
               <LogIn className="h-4 w-4" />
-              <span className="hidden sm:inline">Sign in</span>
+              <span>Sign in</span>
             </Link>
             <Link
               to="/signup"
@@ -172,6 +172,8 @@ export default function Welcome() {
               className="inline-flex items-center gap-1.5 rounded-full bg-curry-gradient text-white px-3.5 py-1.5 text-sm font-semibold shadow-warm hover:shadow-plate transition"
             >
               <Store className="h-4 w-4" />
+              {/* Full label needs room; phones get the short form. */}
+              <span className="sm:hidden">Sign up</span>
               <span className="hidden sm:inline">Create your organization</span>
             </Link>
             <GetAppButton />

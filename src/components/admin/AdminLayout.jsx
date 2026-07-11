@@ -173,6 +173,25 @@ export default function AdminLayout() {
             <div className="flex items-center gap-2">
               <ThemeToggle />
               <NotificationBell perms={user.permissions || []} />
+              {/* The sidebar (and its logout / change-password) is hidden below lg,
+                  so surface both here for phones. */}
+              <button
+                onClick={() => setPwOpen(true)}
+                className="lg:hidden p-2 rounded-full hover:bg-saffron-100 dark:hover:bg-masala-700 text-masala-700 dark:text-saffron-200"
+                aria-label="Change password"
+              >
+                <KeyRound className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => {
+                  logout()
+                  navigate('/admin/login', { replace: true })
+                }}
+                className="lg:hidden p-2 rounded-full hover:bg-chilli-50 text-chilli-600"
+                aria-label="Logout"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
             </div>
           </div>
 

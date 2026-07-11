@@ -166,7 +166,7 @@ export default function KitchenDashboard() {
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-30 backdrop-blur-xl bg-cream/80 dark:bg-masala-900/70 border-b border-saffron-200/60 dark:border-masala-700/60">
-        <div className="px-4 md:px-8 h-16 flex items-center justify-between">
+        <div className="px-4 md:px-8 min-h-16 py-2 flex flex-wrap items-center justify-between gap-y-2">
           <div className="flex items-center gap-2">
             <div className="h-10 w-10 rounded-full bg-curry-gradient flex items-center justify-center shadow-warm">
               <Flame className="h-5 w-5 text-white" />
@@ -187,8 +187,8 @@ export default function KitchenDashboard() {
               onTogglePush={togglePush}
             />
             <ThemeToggle />
-            <button onClick={() => setPwOpen(true)} className="btn-ghost">
-              <KeyRound className="h-4 w-4" /> Password
+            <button onClick={() => setPwOpen(true)} className="btn-ghost" aria-label="Change password">
+              <KeyRound className="h-4 w-4" /> <span className="hidden sm:inline">Password</span>
             </button>
             <button
               onClick={() => {
