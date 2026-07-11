@@ -142,6 +142,8 @@ export const updateCategory = (id, patch) =>
 export const deleteCategory = (id) =>
   api.delete(`/admin/categories/${id}`).then((r) => r.data)
 
+// Staff menu list — includes costPrice (the public /menu strips it).
+export const fetchAdminMenu = () => api.get('/admin/menu').then((r) => r.data)
 export const createDish = (dish) =>
   api.post('/admin/menu', dish).then((r) => r.data)
 export const updateDish = (id, patch) =>
@@ -177,6 +179,9 @@ export const updateStaffPermissions = (id, payload) =>
 
 export const fetchReportsSummary = (params) =>
   api.get('/admin/reports/summary', { params }).then((r) => r.data)
+
+export const fetchReportsAnalytics = (params) =>
+  api.get('/admin/reports/analytics', { params }).then((r) => r.data)
 
 export const fetchBillingTables = () =>
   api.get('/admin/billing/tables').then((r) => r.data)

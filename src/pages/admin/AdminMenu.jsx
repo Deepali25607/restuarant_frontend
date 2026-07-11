@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Pencil, Trash2, X, Save, Image as ImageIcon, AlertTriangle, UtensilsCrossed, Upload, Loader2, Package, PackagePlus, Timer, Tags, Sparkles } from 'lucide-react'
 import clsx from 'clsx'
 import { toast } from 'sonner'
-import { fetchMenu, fetchAdminCategories, createDish, updateDish, deleteDish, uploadImage, restockDish, createCategory, updateCategory, deleteCategory, aiStatus, aiDescribeDish } from '../../lib/api'
+import { fetchAdminMenu, fetchAdminCategories, createDish, updateDish, deleteDish, uploadImage, restockDish, createCategory, updateCategory, deleteCategory, aiStatus, aiDescribeDish } from '../../lib/api'
 import SpiceMeter from '../../components/SpiceMeter'
 import DishImage from '../../components/DishImage'
 import UsageGauge, { refreshUsage } from '../../components/admin/UsageGauge'
@@ -13,6 +13,7 @@ const blank = {
   description: '',
   categoryId: '',
   price: 0,
+  costPrice: '', // '' = not costed; profit reports skip the dish
   image: '',
   isVeg: true,
   spice: 1,
@@ -37,7 +38,7 @@ export default function AdminMenu() {
   const [aiEnabled, setAiEnabled] = useState(false)
 
   useEffect(() => {
-    Promise.all([fetchMenu(), fetchAdminCategories()])
+    Promise.all([fetchAdminMenu(), fetchAdminCategories()])
       .then(([m, c]) => {
         setMenu(m)
         setCategories(c)
@@ -273,6 +274,13 @@ export default function AdminMenu() {
                   type="number"
                   value={editing.price}
                   onChange={(v) => setEditing({ ...editing, price: Number(v) })}
+                />
+                <Field
+                  label="Cost price ₹ (blank = not costed)"
+                  type="number"
+                  value={editing.costPrice ?? ''}
+                  onChange={(v) => setEditing({ ...editing, costPrice: v })}
+                  placeholder="ingredients + packaging"
                 />
                 <Field
                   label="Spice level (0–3)"
