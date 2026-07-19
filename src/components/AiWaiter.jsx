@@ -76,8 +76,10 @@ export default function AiWaiter() {
   const send = async (text) => {
     const trimmed = String(text || '').trim()
     if (!trimmed || busy) return
-    const history = [...messages, { role: 'user', text: trimmed }]
-    setMessages(history)
+    // Failed bubbles hold our own error strings — keep them on screen but
+    // never replay them to the model as assistant turns.
+    const history = [...messages.filter((m) => !m.failed), { role: 'user', text: trimmed }]
+    setMessages((ms) => [...ms, { role: 'user', text: trimmed }])
     setInput('')
     setBusy(true)
     try {
