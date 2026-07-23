@@ -11,7 +11,7 @@ export default function AdminLogin() {
   const setAuth = useAuthStore((s) => s.setAuth)
   const requestedFrom = location.state?.from
 
-  const [email, setEmail] = useState('admin@org-masala.com')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [show, setShow] = useState(false)
   const [error, setError] = useState('')
@@ -145,13 +145,6 @@ export default function AdminLogin() {
               {loading ? 'Signing in…' : 'Enter dashboard'}
             </button>
           </form>
-
-          <div className="mt-6 rounded-2xl bg-saffron-50 border border-saffron-200 px-4 py-3 text-xs text-masala-800">
-            <div className="font-semibold mb-1">Demo credentials</div>
-            <div>admin@org-masala.com · <span className="font-mono">admin@123</span></div>
-            <div>manager@org-masala.com · <span className="font-mono">manager@123</span></div>
-            <div>cashier@org-masala.com · <span className="font-mono">cashier@123</span></div>
-          </div>
 
           <div className="mt-6 pt-5 border-t border-saffron-200 text-center">
             <span className="text-sm text-masala-700">New here? </span>
